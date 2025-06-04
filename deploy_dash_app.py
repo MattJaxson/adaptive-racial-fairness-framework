@@ -62,67 +62,57 @@ app.layout = html.Div([
     Output('outcome-distribution-graph', 'figure'),
     Output('fairness-metric-result', 'children'),
     Input('reweight-toggle', 'value'),
-    Input('fairness-metric-toggle', 'value'),
-    prevent_initial_call=True
+    Input('fairness-metric-toggle', 'value')
 )
 def update_graph(reweighting, fairness_metric):
-    try:
-        df = data.copy()
+    df = data.copy()
 
-        if reweighting == 'reweighted':
-            df = reweight_samples_with_community(
-                df, race_col='race', outcome_col='hired', favorable='Yes',
-                community_defs=community_defs
-            )
-            logging.info("Applied community-driven reweighting.")
-        else:
-            df['sample_weight'] = 1.0
-            logging.info("Using original data weights.")
-
-        # Compute group weights
-        def compute_group_weights(group):
-            total_weight = group['sample_weight'].sum()
-            grouped = group[['hired', 'sample_weight']].groupby('hired')['sample_weight'].sum()
-            return grouped / total_weight
-
-        grouped_data = df[['race', 'hired', 'sample_weight']]
-
-        race_outcomes = (
-            grouped_data.groupby('race', group_keys=False)
-            .apply(compute_group_weights, include_groups=False)
-            .unstack()
-            .fillna(0)
-            .reset_index()
+    if reweighting == 'reweighted':
+        df = reweight_samples_with_community(
+            df, race_col='race', outcome_col='hired', favorable='Yes',
+            community_defs=community_defs
         )
+        logging.info("Applied community-driven reweighting.")
+    else:
+        df['sample_weight'] = 1.0
+        logging.info("Using original data weights.")
 
-        # Ensure 'Yes' and 'No' columns always exist
-        for col in ['Yes', 'No']:
-            if col not in race_outcomes.columns:
-                race_outcomes[col] = 0.0
+    # Compute race-outcome distributions
+    race_outcomes = (
+        df.groupby(['race', 'hired'])['sample_weight']
+        .sum()
+        .groupby(level=0)
+        .apply(lambda x: x / x.sum())
+        .unstack(fill_value=0)
+        .reset_index()
+    )
 
-        race_outcomes_melted = race_outcomes.melt(id_vars='race', value_vars=['Yes', 'No'],
-                                                  var_name='hired', value_name='proportion')
+    logging.info("Processed race_outcomes successfully.")
+    print("Columns in race_outcomes:", race_outcomes.columns)
+    print("race_outcomes:\n", race_outcomes)
 
-        fig = px.bar(race_outcomes_melted, x='race', y='proportion', color='hired',
-                      title='Outcome Distribution by Race',
-                      labels={'proportion': 'Proportion', 'race': 'Race', 'hired': 'Outcome'},
-                      barmode='stack')
+    # Melt to long-form for plotting
+    race_outcomes_melted = race_outcomes.melt(id_vars='race', value_vars=['Yes', 'No'],
+                                              var_name='hired', value_name='proportion')
 
-        if fairness_metric == 'DI':
-            white_rate = df.loc[df['race'] == 'White', 'hired'].value_counts(normalize=True).get('Yes', 0)
-            black_rate = df.loc[df['race'] == 'Black', 'hired'].value_counts(normalize=True).get('Yes', 0)
-            latinx_rate = df.loc[df['race'] == 'Latinx', 'hired'].value_counts(normalize=True).get('Yes', 0)
-            di_black_white = black_rate / white_rate if white_rate else 0
-            di_latinx_white = latinx_rate / white_rate if white_rate else 0
-            result_text = f"Disparate Impact - Black vs White: {di_black_white:.2f} | Latinx vs White: {di_latinx_white:.2f}"
-        else:
-            result_text = "Equalized Odds not yet implemented."
+    fig = px.bar(race_outcomes_melted, x='race', y='proportion', color='hired',
+                  title='Outcome Distribution by Race',
+                  labels={'proportion': 'Proportion', 'race': 'Race', 'hired': 'Outcome'},
+                  barmode='stack')
 
-        logging.info("Processed race_outcomes successfully.")
-        return fig, html.P(result_text)
-    except Exception as e:
-        logging.error("Error in callback: %s", e)
-        return px.bar(), html.P("Error generating graph.")
+    # Fairness metric
+    if fairness_metric == 'DI':
+        white_rate = df.loc[df['race'] == 'White', 'hired'].value_counts(normalize=True).get('Yes', 0)
+        black_rate = df.loc[df['race'] == 'Black', 'hired'].value_counts(normalize=True).get('Yes', 0)
+        latinx_rate = df.loc[df['race'] == 'Latinx', 'hired'].value_counts(normalize=True).get('Yes', 0)
+        di_black_white = black_rate / white_rate if white_rate else 0
+        di_latinx_white = latinx_rate / white_rate if white_rate else 0
+        result_text = f"Disparate Impact - Black vs White: {di_black_white:.2f} | Latinx vs White: {di_latinx_white:.2f}"
+    else:
+        result_text = "Equalized Odds not yet implemented."
+
+    logging.info(result_text)
+    return fig, html.P(result_text)
 
 if __name__ == "__main__":
     app.run(debug=True, host='0.0.0.0', port=8050)
