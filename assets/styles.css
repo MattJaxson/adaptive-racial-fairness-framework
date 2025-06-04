@@ -1,0 +1,174 @@
+/* Base and fonts */
+body {
+    margin: 0;
+    font-family: "Helvetica Neue", sans-serif;
+    background: #fdfdfc;
+    color: #333;
+}
+
+.app-container {
+    display: flex;
+    height: 100vh;
+    font-size: 16px;
+}
+
+/* Sidebar */
+.sidebar {
+    background: linear-gradient(135deg, #8b0000, #b22222);
+    color: #fdfdfc;
+    width: 250px;
+    padding: 20px;
+    border-top-right-radius: 20px;
+    border-bottom-right-radius: 20px;
+    box-shadow: 4px 0 15px rgba(0, 0, 0, 0.1);
+}
+
+.sidebar-title {
+    margin: 0;
+    font-size: 2.2em;
+    font-weight: bold;
+    color: #fff8f0;
+    text-transform: uppercase;
+}
+
+.sidebar-email {
+    font-size: 1em;
+    margin-top: 5px;
+    color: #ffe5d9;
+}
+
+.sidebar-tagline {
+    font-size: 1em;
+    margin-top: 5px;
+    color: #fff8f0;
+    font-weight: 600;
+}
+
+.sidebar-nav {
+    margin-top: 20px;
+}
+
+.sidebar-link {
+    display: block;
+    color: #fdfdfc;
+    text-decoration: none;
+    margin: 15px 0;
+    font-weight: 600;
+    border-left: 3px solid transparent;
+    transition: all 0.3s ease;
+}
+
+.sidebar-link:hover {
+    border-left: 3px solid #ffe5d9;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    padding-left: 10px;
+}
+
+/* Main content area */
+.content {
+    flex: 1;
+    padding: 20px;
+    background: linear-gradient(135deg, #fdfdfc 0%, #f8f8f6 100%);
+    overflow-y: auto;
+}
+
+/* Header */
+.header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+    font-size: 2em;
+    font-weight: 600;
+    color: #8b0000;
+    text-transform: uppercase;
+}
+
+/* Buttons */
+.button {
+    background-color: #a00000;
+    color: #fff;
+    padding: 12px 18px;
+    border-radius: 10px;
+    border: none;
+    cursor: pointer;
+    font-size: 1.1em;
+    margin-top: 15px;
+    transition: background-color 0.3s ease, transform 0.3s ease;
+}
+
+.button:hover {
+    background-color: #b22222;
+    transform: scale(1.05);
+}
+
+/* Cards and visuals */
+.card-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 25px;
+    padding: 20px;
+}
+
+.card {
+    background: #fff;
+    border-radius: 20px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    padding: 20px;
+    min-width: 300px;
+    max-width: 400px;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.card:hover {
+    transform: translateY(-10px);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+}
+
+.boost-card {
+    background: linear-gradient(135deg, #a00000 0%, #ffcccc 100%);
+    color: #fff8f0;
+    text-align: center;
+    font-weight: 700;
+}
+
+.dash-graph {
+    margin-top: 10px;
+}
+
+/* File Upload Section */
+#upload-data {
+    background: #fff;
+    border-radius: 8px;
+    border: 2px dashed #a00000;
+    padding: 20px;
+    font-size: 16px;
+    color: #a00000;
+    font-weight: 600;
+    text-align: center;
+    cursor: pointer;
+}
+
+#upload-data:hover {
+    background: rgba(255, 240, 240, 0.3);
+    border-color: #ffcccc;
+}
+
+#upload-status {
+    margin-top: 10px;
+    font-size: 16px;
+    color: #8b0000;
+    font-weight: 600;
+}
+
+/* Right-side Card Text */
+#fairness-metric-result {
+    font-size: 16px;
+    margin-top: 15px;
+    color: #333;
+    font-weight: 600;
+    padding: 10px;
+    border-radius: 10px;
+    background: #fff;
+}
