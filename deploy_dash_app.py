@@ -1,11 +1,13 @@
-import dash
 from dash import dcc, html, Input, Output
+import dash
 import plotly.express as px
 import pandas as pd
 import logging
 from fairness_reweight import reweight_samples_with_community
 from utils import setup_logging
 from load_community_definitions import load_community_definitions
+import base64
+import io
 
 # Setup logging
 setup_logging()
@@ -13,9 +15,16 @@ setup_logging()
 # Load community definitions
 community_defs = load_community_definitions()
 
-# Load data
+# Define column names based on your dataset
+column_names = [
+    'age', 'workclass', 'fnlwgt', 'education', 'education-num',
+    'marital-status', 'occupation', 'relationship', 'race', 'sex',
+    'capital-gain', 'capital-loss', 'hours-per-week', 'native-country', 'income'
+]
+
+# Load data (using CSV as default example)
 try:
-    data = pd.read_csv("data/real_hr_data.csv")
+    data = pd.read_csv("data/real_hr_data.csv", names=column_names, header=None)  # Use names if there's no header
 except FileNotFoundError:
     print("Error: real_hr_data.csv not found. Please add your dataset to data/real_hr_data.csv.")
     exit(1)
@@ -24,8 +33,12 @@ except FileNotFoundError:
 app = dash.Dash(__name__)
 server = app.server
 
-# Layout with updated sections and styles
+# Layout with custom classes that match your styles
 app.layout = html.Div(className="app-container", children=[
+    # Link the JS file from the assets folder
+    html.Script(src="/assets/animations.js"),  # This will automatically load the JS
+
+    # Sidebar section
     html.Div(className="sidebar", children=[
         html.H1("Equity Audit", className="sidebar-title"),
         html.P("by Matt Jaxson", className="sidebar-email"),
@@ -53,20 +66,27 @@ app.layout = html.Div(className="app-container", children=[
             )
         ]),
     ]),
+
+    # Main content section
     html.Div(className="content", children=[
         html.Div(className="header", children=[
             html.H1("Racial Fairness Dashboard"),
         ]),
+
+        # Card containers for layout
         html.Div(className="card-container", children=[
             html.Div(className="card", children=[
                 html.H3("Outcome Distribution"),
                 dcc.Graph(id='outcome-distribution-graph', className="dash-graph"),
             ]),
+
             html.Div(className="card boost-card", children=[
                 html.H3("Fairness Metrics"),
                 html.Div(id='fairness-metric-result'),
             ]),
-            html.Div(className="card upload-card", children=[
+
+            # HR Data upload section
+            html.Div(className="card", children=[
                 html.H3("Upload HR Data"),
                 dcc.Upload(
                     id='upload-data',
@@ -87,7 +107,9 @@ app.layout = html.Div(className="app-container", children=[
                 ),
                 html.Div(id='upload-status')
             ]),
-            html.Div(className="card report-card", children=[
+
+            # Fairness Reports Section
+            html.Div(className="card", children=[
                 html.H3("Fairness Reports"),
                 html.P("View or download detailed fairness reports.", style={'margin': '10px 0'}),
                 html.Button("Download Report", className="button"),
@@ -101,14 +123,38 @@ app.layout = html.Div(className="app-container", children=[
     Output('outcome-distribution-graph', 'figure'),
     Output('fairness-metric-result', 'children'),
     Input('reweight-toggle', 'value'),
-    Input('fairness-metric-toggle', 'value')
+    Input('fairness-metric-toggle', 'value'),
+    Input('upload-data', 'contents')  # Added upload-data as input
 )
-def update_graph(reweighting, fairness_metric):
-    df = data.copy()
+def update_graph(reweighting, fairness_metric, file_contents):
+    if file_contents is None:
+        return dash.no_update  # Exit early if no file uploaded
 
+    # Decode and process the uploaded file
+    content_type, content_string = file_contents.split(',')
+    decoded = base64.b64decode(content_string)
+    try:
+        # Read the CSV data
+        df = pd.read_csv(io.StringIO(decoded.decode('utf-8')), header=None)  # No header in .data files by default
+        df.columns = column_names  # Set column names manually after reading the file
+
+        # Display the first few rows of the data to confirm it's loading properly
+        print("Data loaded:\n", df.head())  # This will print the first 5 rows in the console
+        print("Columns in data:", df.columns)  # Print the column names for debugging
+
+    except Exception as e:
+        print(f"Error reading file: {e}")
+        return dash.no_update  # Return nothing if there's an error
+
+    # Ensure 'race' column exists
+    if 'race' not in df.columns:
+        print("Error: 'race' column not found in the data")
+        return dash.no_update
+
+    # Apply reweighting logic (same as before)
     if reweighting == 'reweighted':
         df = reweight_samples_with_community(
-            df, race_col='race', outcome_col='hired', favorable='Yes',
+            df, race_col='race', outcome_col='income', favorable='>50K',  # Changed from 'hired' to 'income'
             community_defs=community_defs
         )
         logging.info("Applied community-driven reweighting.")
@@ -116,9 +162,9 @@ def update_graph(reweighting, fairness_metric):
         df['sample_weight'] = 1.0
         logging.info("Using original data weights.")
 
-    # Compute race-outcome distributions
+    # Continue with your race-outcome calculations and plot generation here...
     race_outcomes = (
-        df.groupby(['race', 'hired'])['sample_weight']
+        df.groupby(['race', 'income'])['sample_weight']  # Use 'income' instead of 'hired'
         .sum()
         .groupby(level=0)
         .apply(lambda x: x / x.sum())
@@ -126,25 +172,23 @@ def update_graph(reweighting, fairness_metric):
         .reset_index()
     )
 
-    # Make sure columns exist
-    for col in ['Yes', 'No']:
+    for col in ['<=50K', '>50K']:  # Adjusted based on 'income' column
         if col not in race_outcomes.columns:
             race_outcomes[col] = 0
 
-    # Melt for plot
-    race_outcomes_melted = race_outcomes.melt(id_vars='race', value_vars=['Yes', 'No'],
-                                              var_name='hired', value_name='proportion')
+    race_outcomes_melted = race_outcomes.melt(id_vars='race', value_vars=['<=50K', '>50K'],
+                                              var_name='income', value_name='proportion')
 
-    fig = px.bar(race_outcomes_melted, x='race', y='proportion', color='hired',
+    fig = px.bar(race_outcomes_melted, x='race', y='proportion', color='income',
                   title='Outcome Distribution by Race',
-                  labels={'proportion': 'Proportion', 'race': 'Race', 'hired': 'Outcome'},
+                  labels={'proportion': 'Proportion', 'race': 'Race', 'income': 'Income'},
                   barmode='stack')
 
-    # Fairness metric
+    # Fairness metric (Disparate Impact)
     if fairness_metric == 'DI':
-        white_rate = df.loc[df['race'] == 'White', 'hired'].value_counts(normalize=True).get('Yes', 0)
-        black_rate = df.loc[df['race'] == 'Black', 'hired'].value_counts(normalize=True).get('Yes', 0)
-        latinx_rate = df.loc[df['race'] == 'Latinx', 'hired'].value_counts(normalize=True).get('Yes', 0)
+        white_rate = df.loc[df['race'] == 'White', 'income'].value_counts(normalize=True).get('>50K', 0)
+        black_rate = df.loc[df['race'] == 'Black', 'income'].value_counts(normalize=True).get('>50K', 0)
+        latinx_rate = df.loc[df['race'] == 'Latinx', 'income'].value_counts(normalize=True).get('>50K', 0)
         di_black_white = black_rate / white_rate if white_rate else 0
         di_latinx_white = latinx_rate / white_rate if white_rate else 0
         result_text = f"Disparate Impact - Black vs White: {di_black_white:.2f} | Latinx vs White: {di_latinx_white:.2f}"
