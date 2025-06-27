@@ -2,25 +2,51 @@
 body {
     margin: 0;
     font-family: "Helvetica Neue", sans-serif;
-    background: #fdfdfc;
-    color: #333;
+    background: var(--bg-color);
+    color: var(--text-color);
+    transition: background 0.3s, color 0.3s;
+}
+
+:root {
+    --bg-color: #fdfdfc;
+    --text-color: #333;
+    --card-bg: #fff;
+    --card-text: #333;
+    --sidebar-bg: linear-gradient(135deg, #8b0000, #b22222);
+    --accent-color: #ffe5d9;
+}
+
+body.dark-mode {
+    --bg-color: #121212;
+    --text-color: #f0f0f0;
+    --card-bg: #1e1e1e;
+    --card-text: #f0f0f0;
+    --sidebar-bg: linear-gradient(135deg, #300000, #550000);
 }
 
 .app-container {
     display: flex;
     height: 100vh;
     font-size: 16px;
+    overflow: hidden;
+    flex-wrap: wrap;
+    transition: all 0.3s ease-in-out;
 }
 
 /* Sidebar */
 .sidebar {
-    background: linear-gradient(135deg, #8b0000, #b22222);
+    background: var(--sidebar-bg);
     color: #fdfdfc;
     width: 250px;
     padding: 20px;
     border-top-right-radius: 20px;
     border-bottom-right-radius: 20px;
     box-shadow: 4px 0 15px rgba(0, 0, 0, 0.1);
+    position: sticky;
+    top: 0;
+    align-self: flex-start;
+    height: 100vh;
+    transition: background 0.5s ease;
 }
 
 .sidebar-title {
@@ -29,18 +55,17 @@ body {
     font-weight: bold;
     color: #fff8f0;
     text-transform: uppercase;
+    transition: transform 0.3s;
 }
 
-.sidebar-email {
+.sidebar-title:hover {
+    transform: scale(1.05);
+}
+
+.sidebar-email, .sidebar-tagline {
     font-size: 1em;
     margin-top: 5px;
     color: #ffe5d9;
-}
-
-.sidebar-tagline {
-    font-size: 1em;
-    margin-top: 5px;
-    color: #fff8f0;
     font-weight: 600;
 }
 
@@ -49,7 +74,9 @@ body {
 }
 
 .sidebar-link {
-    display: block;
+    display: flex;
+    align-items: center;
+    gap: 10px;
     color: #fdfdfc;
     text-decoration: none;
     margin: 15px 0;
@@ -59,18 +86,22 @@ body {
 }
 
 .sidebar-link:hover {
-    border-left: 3px solid #ffe5d9;
+    border-left: 3px solid var(--accent-color);
     background: rgba(255, 255, 255, 0.1);
     border-radius: 8px;
     padding-left: 10px;
+    transform: translateX(5px);
 }
 
 /* Main content area */
 .content {
     flex: 1;
     padding: 20px;
-    background: linear-gradient(135deg, #fdfdfc 0%, #f8f8f6 100%);
+    background: var(--bg-color);
     overflow-y: auto;
+    height: 100vh;
+    max-height: 100vh;
+    transition: all 0.3s ease-in-out;
 }
 
 /* Header */
@@ -83,6 +114,28 @@ body {
     font-weight: 600;
     color: #8b0000;
     text-transform: uppercase;
+    flex-wrap: wrap;
+    position: sticky;
+    top: 0;
+    background: var(--bg-color);
+    z-index: 999;
+}
+
+.toggle-dark, .toggle-contrast {
+    background: #333;
+    color: #fff;
+    border: none;
+    padding: 8px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 600;
+    margin-left: 10px;
+    transition: all 0.3s ease;
+}
+
+.toggle-dark:hover, .toggle-contrast:hover {
+    background: #555;
+    transform: scale(1.05);
 }
 
 /* Buttons */
@@ -109,15 +162,27 @@ body {
     flex-wrap: wrap;
     gap: 25px;
     padding: 20px;
+    align-items: flex-start;
+    max-height: 100%;
+    justify-content: center;
+    animation: fadeInUp 1s ease;
+}
+
+@keyframes fadeInUp {
+    from { transform: translateY(20px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
 }
 
 .card {
-    background: #fff;
+    background: var(--card-bg);
+    color: var(--card-text);
     border-radius: 20px;
     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
     padding: 20px;
-    min-width: 300px;
-    max-width: 400px;
+    min-width: 280px;
+    max-width: 380px;
+    max-height: 500px;
+    overflow-y: auto;
     transition: transform 0.3s ease, box-shadow 0.3s ease;
 }
 
@@ -131,10 +196,14 @@ body {
     color: #fff8f0;
     text-align: center;
     font-weight: 700;
+    max-height: 500px;
+    overflow-y: auto;
 }
 
 .dash-graph {
     margin-top: 10px;
+    height: 300px;
+    width: 100%;
 }
 
 /* File Upload Section */
@@ -148,11 +217,13 @@ body {
     font-weight: 600;
     text-align: center;
     cursor: pointer;
+    transition: all 0.3s ease;
 }
 
 #upload-data:hover {
     background: rgba(255, 240, 240, 0.3);
     border-color: #ffcccc;
+    transform: scale(1.02);
 }
 
 #upload-status {
@@ -166,9 +237,39 @@ body {
 #fairness-metric-result {
     font-size: 16px;
     margin-top: 15px;
-    color: #333;
+    color: var(--text-color);
     font-weight: 600;
     padding: 10px;
     border-radius: 10px;
-    background: #fff;
+    background: var(--card-bg);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .app-container {
+        flex-direction: column;
+        height: auto;
+    }
+
+    .sidebar {
+        width: 100%;
+        height: auto;
+        border-radius: 0;
+        position: relative;
+    }
+
+    .card-container {
+        padding: 10px;
+        gap: 15px;
+    }
+
+    .card {
+        min-width: unset;
+        width: 100%;
+        max-width: unset;
+    }
+
+    .header {
+        font-size: 1.5em;
+    }
 }
