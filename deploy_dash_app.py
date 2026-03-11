@@ -1,202 +1,293 @@
-from racial_bias_score import calculate_racial_bias_score
-from dash import dcc, html, Input, Output
+import base64
+import copy
+import io
+import logging
+
 import dash
+from dash import dcc, html, Input, Output, State
 import plotly.express as px
 import pandas as pd
-import logging
+
 from fairness_reweight import reweight_samples_with_community
 from utils import setup_logging
 from load_community_definitions import load_community_definitions
+from racial_bias_score import calculate_racial_bias_score
 
-# Setup logging
 setup_logging()
-
-# Load community definitions
 community_defs = load_community_definitions()
 
-# Define column names
-column_names = [
-    'age', 'workclass', 'fnlwgt', 'education', 'education-num',
-    'marital-status', 'occupation', 'relationship', 'race', 'sex',
-    'capital-gain', 'capital-loss', 'hours-per-week', 'native-country', 'income'
-]
+DI_THRESHOLD = 0.8  # 4/5ths rule legal threshold
 
-# Load data
-# Load data
-try:
-    data = pd.read_csv("data/real_hr_data.csv")
-    print("✅ Columns detected:", data.columns.tolist())
-    data.columns = data.columns.str.strip().str.lower()
-    data.rename(columns={'hired': 'income'}, inplace=True)
-
-
-    # Strip whitespace in critical columns
-    data['income'] = data['income'].astype(str).str.strip()
-    data['race'] = data['race'].astype(str).str.strip()
-    
-    data['income'] = data['income'].replace({
-        '>50K': 'Yes', '<=50K': 'No'
-    })
-
-    # ✅ Print sample rows and distributions for debugging
-    print("\n✅ Sample of loaded data:")
-    print(data.head())
-    print("\n📊 Income value counts:")
-    print(data['income'].value_counts())
-    print("\n📊 Race value counts:")
-    print(data['race'].value_counts())
-except FileNotFoundError:
-    print("❌ Error: real_hr_data.csv not found. Please add your dataset to data/real_hr_data.csv.")
-    exit(1)
-
-
-# Initialize Dash app
 app = dash.Dash(__name__)
 server = app.server
-app.title = "Racial Fairness Dashboard"
+app.title = "Equity Audit Dashboard"
 
-# Layout
+# ── Layout ────────────────────────────────────────────────────────────────────
+
 app.layout = html.Div(className="app-container", children=[
+
+    # Sidebar
     html.Div(className="sidebar", children=[
-        html.H1("Equity Audit"),
-        html.P("Navigation / filters go here."),
+        html.H2("Equity Audit", className="sidebar-title"),
+        html.P("Racial Fairness Analysis", className="sidebar-tagline"),
+
+        html.Hr(className="sidebar-divider"),
+
+        # Upload
+        html.P("Upload Dataset", className="sidebar-label"),
+        dcc.Upload(
+            id='upload-data',
+            children=html.Div(['Drag & Drop or ', html.A('Select CSV')]),
+            multiple=False,
+        ),
+        html.Div(id='upload-status'),
+
+        html.Hr(className="sidebar-divider"),
+
+        # Column mapping
+        html.P("Sensitive / Race Column", className="sidebar-label"),
+        dcc.Dropdown(id='race-col-dropdown', placeholder='Select column…', className="sidebar-dropdown"),
+
+        html.P("Outcome Column", className="sidebar-label"),
+        dcc.Dropdown(id='outcome-col-dropdown', placeholder='Select column…', className="sidebar-dropdown"),
+
+        html.P("Favorable Outcome Value", className="sidebar-label"),
+        dcc.Dropdown(id='favorable-value-dropdown', placeholder='Select value…', className="sidebar-dropdown"),
+
+        html.Hr(className="sidebar-divider"),
+
+        # Controls
+        html.P("Data View", className="sidebar-label"),
         dcc.RadioItems(
             id='reweight-toggle',
             options=[
                 {'label': 'Original', 'value': 'original'},
-                {'label': 'Reweighted', 'value': 'reweighted'}
+                {'label': 'Reweighted', 'value': 'reweighted'},
             ],
             value='original',
-            labelStyle={'display': 'block'}
+            className="sidebar-radio",
         ),
+
+        html.Br(),
+
+        html.P("Fairness Metric", className="sidebar-label"),
         dcc.RadioItems(
             id='fairness-metric-toggle',
             options=[
                 {'label': 'Disparate Impact', 'value': 'DI'},
-                {'label': 'Equalized Odds', 'value': 'EO'}
+                {'label': 'Statistical Parity', 'value': 'SP'},
             ],
             value='DI',
-            labelStyle={'display': 'block'}
-        )
+            className="sidebar-radio",
+        ),
+
+        html.Hr(className="sidebar-divider"),
+
+        html.Div([
+            html.Button("Dark Mode", id="dark-mode-toggle", className="toggle-dark"),
+            html.Button("High Contrast", id="contrast-toggle", className="toggle-dark"),
+        ], style={'display': 'flex', 'gap': '8px', 'flexWrap': 'wrap'}),
     ]),
 
+    # Main content
     html.Div(className="content", children=[
         html.Div(className="header", children=[
             html.H1("Racial Fairness Dashboard"),
-            html.Div([
-                html.Button("Toggle Dark Mode", id="dark-mode-toggle", className="toggle-dark"),
-                html.Button("High Contrast", id="contrast-toggle", className="toggle-dark")
-            ], style={'display': 'flex', 'gap': '10px'})
         ]),
-
-        html.Div(className="card-container", children=[
-            html.Div(className="card", children=[
-                html.H3("Outcome Distribution"),
-                dcc.Graph(id='outcome-distribution-graph', className="dash-graph"),
-            ]),
-
-            html.Div(className="card boost-card", children=[
-                html.H3("Fairness Metrics"),
-                html.Div(id='fairness-metric-result', children=[]),
-            ]),
-
-            html.Div(className="card boost-card", children=[
-                html.H3("Racial Bias Score"),
-                html.Div(id='racial-bias-score-result', children=[]),
-            ]),
-        ])
+        html.Div(id='dashboard-content', children=[
+            html.Div(
+                "Upload a CSV and map your columns using the sidebar to get started.",
+                className="empty-state",
+            )
+        ]),
     ]),
 
-    # ✅ JS loaded last for safety
-    html.Script(src="/assets/animations.js")
+    dcc.Store(id='stored-data'),
 ])
 
-# Callbacks
-@app.callback(
-    Output('outcome-distribution-graph', 'figure'),
-    Output('fairness-metric-result', 'children'),
-    Output('racial-bias-score-result', 'children'),
-    Input('reweight-toggle', 'value'),
-    Input('fairness-metric-toggle', 'value')
-)
-def update_graph(reweighting, fairness_metric):
-    df = data.copy()
+# ── Callbacks ─────────────────────────────────────────────────────────────────
 
-    # Reweighting logic
+@app.callback(
+    Output('stored-data', 'data'),
+    Output('race-col-dropdown', 'options'),
+    Output('outcome-col-dropdown', 'options'),
+    Output('upload-status', 'children'),
+    Input('upload-data', 'contents'),
+    State('upload-data', 'filename'),
+    prevent_initial_call=True,
+)
+def store_upload(contents, filename):
+    """Parse uploaded CSV, store as JSON, populate column dropdowns."""
+    if contents is None:
+        return None, [], [], ''
+
+    _, content_string = contents.split(',')
+    decoded = base64.b64decode(content_string)
+
+    try:
+        df = pd.read_csv(io.StringIO(decoded.decode('utf-8')))
+        df.columns = df.columns.str.strip()
+        col_options = [{'label': c, 'value': c} for c in df.columns]
+        status = html.Span(f"✓ {filename} ({len(df):,} rows)", className="upload-success")
+        logging.info("Uploaded %s — %d rows, %d columns", filename, len(df), len(df.columns))
+        return df.to_json(date_format='iso', orient='split'), col_options, col_options, status
+    except Exception as exc:
+        logging.error("Upload failed: %s", exc)
+        return None, [], [], html.Span(f"Error: {exc}", className="upload-error")
+
+
+@app.callback(
+    Output('favorable-value-dropdown', 'options'),
+    Output('favorable-value-dropdown', 'value'),
+    Input('outcome-col-dropdown', 'value'),
+    State('stored-data', 'data'),
+    prevent_initial_call=True,
+)
+def update_favorable_options(outcome_col, stored_data):
+    """Populate favorable-value dropdown from unique values in the outcome column."""
+    if not outcome_col or not stored_data:
+        return [], None
+    df = pd.read_json(stored_data, orient='split')
+    unique_vals = sorted(df[outcome_col].dropna().unique().tolist(), key=str)
+    return [{'label': str(v), 'value': v} for v in unique_vals], None
+
+
+@app.callback(
+    Output('dashboard-content', 'children'),
+    Input('stored-data', 'data'),
+    Input('race-col-dropdown', 'value'),
+    Input('outcome-col-dropdown', 'value'),
+    Input('favorable-value-dropdown', 'value'),
+    Input('reweight-toggle', 'value'),
+    Input('fairness-metric-toggle', 'value'),
+    prevent_initial_call=True,
+)
+def update_dashboard(stored_data, race_col, outcome_col, favorable_value, reweighting, fairness_metric):
+    """Render outcome chart, fairness metric panel, and disparity score."""
+    if not stored_data or not race_col or not outcome_col or favorable_value is None:
+        return html.Div(
+            "Select all column mappings to view the analysis.",
+            className="empty-state",
+        )
+
+    df = pd.read_json(stored_data, orient='split')
+    df[race_col] = df[race_col].astype(str).str.strip()
+    df[outcome_col] = df[outcome_col].astype(str).str.strip()
+    favorable_str = str(favorable_value)
+
+    # Apply reweighting
     if reweighting == 'reweighted':
+        local_defs = copy.deepcopy(community_defs)
+        local_defs.setdefault('priority_groups', df[race_col].unique().tolist())
         df = reweight_samples_with_community(
-          df, race_col='race', outcome_col='income', favorable='Yes',
-          community_defs=community_defs
+            df, race_col=race_col, outcome_col=outcome_col,
+            favorable=favorable_str, community_defs=local_defs,
         )
         logging.info("Applied community-driven reweighting.")
-    
     else:
         df['sample_weight'] = 1.0
-        logging.info("Using original data weights.")
-    # ✅ Ensure numeric weights (fix for agg error)
-    df['sample_weight'] = pd.to_numeric(df['sample_weight'], errors='coerce').fillna(1.0)
-    
-    # 🔍 Optional: Debug sample
-    print("\n🔍 Sample of processed sample_weight column:")
-    print(df[['race', 'income', 'sample_weight']].head())
-    print(df['sample_weight'].dtype)
 
-    # Group and normalize
-    grouped = df.groupby(['race', 'income'], as_index=False)['sample_weight'].sum()
-    grouped['sample_weight'] = grouped['sample_weight'].astype(float)
-    grouped['proportion'] = grouped.groupby('race')['sample_weight'].transform(
+    df['sample_weight'] = pd.to_numeric(df['sample_weight'], errors='coerce').fillna(1.0)
+
+    # ── Outcome distribution chart ────────────────────────────────────────────
+    grouped = df.groupby([race_col, outcome_col], as_index=False)['sample_weight'].sum()
+    grouped['proportion'] = grouped.groupby(race_col)['sample_weight'].transform(
         lambda x: x / x.sum() if x.sum() > 0 else 0
     )
-    race_outcomes = grouped.pivot(index='race', columns='income', values='proportion').fillna(0).reset_index()
-
-    for col in ['No', 'Yes']:
-        if col not in race_outcomes.columns:
-            race_outcomes[col] = 0
-
-    race_outcomes_melted = race_outcomes.melt(
-        id_vars='race',
-        value_vars=['No', 'Yes'],
-        var_name='income',
-        value_name='proportion'
-    )
-    
-    print("\n✅ Melted Data for Plot:")
-    print(race_outcomes_melted.head())
-
 
     fig = px.bar(
-        race_outcomes_melted, x='race', y='proportion', color='income',
-        title='Outcome Distribution by Race',
-        labels={'proportion': 'Proportion', 'race': 'Race', 'income': 'Income'},
-        barmode='stack'
+        grouped, x=race_col, y='proportion', color=outcome_col,
+        title='Outcome Distribution by Group',
+        labels={'proportion': 'Proportion', race_col: 'Group', outcome_col: 'Outcome'},
+        barmode='stack',
+        color_discrete_sequence=px.colors.qualitative.Set2,
+    )
+    fig.update_layout(
+        plot_bgcolor='rgba(0,0,0,0)',
+        paper_bgcolor='rgba(0,0,0,0)',
+        margin=dict(t=40, b=20, l=10, r=10),
+        legend_title_text='Outcome',
     )
 
-    # Fairness metric
+    # ── Per-group weighted hire rates ─────────────────────────────────────────
+    hire_rates = {}
+    for group in df[race_col].unique():
+        gdf = df[df[race_col] == group]
+        favorable_weight = gdf.loc[gdf[outcome_col] == favorable_str, 'sample_weight'].sum()
+        total_weight = gdf['sample_weight'].sum()
+        hire_rates[group] = favorable_weight / total_weight if total_weight > 0 else 0
+
+    # ── Fairness metric panel ─────────────────────────────────────────────────
     if fairness_metric == 'DI':
-        white_rate = df.loc[df['race'] == 'White', 'income'].value_counts(normalize=True).get('Yes', 0)
-        black_rate = df.loc[df['race'] == 'Black', 'income'].value_counts(normalize=True).get('Yes', 0)
-        latinx_rate = df.loc[df['race'] == 'Latinx', 'income'].value_counts(normalize=True).get('Yes', 0)
+        ref_group = max(hire_rates, key=hire_rates.get)
+        ref_rate = hire_rates[ref_group]
+        rows = []
+        for group, rate in sorted(hire_rates.items(), key=lambda x: -x[1]):
+            di = rate / ref_rate if ref_rate > 0 else 0
+            below = di < DI_THRESHOLD and group != ref_group
+            rows.append(html.Li(
+                [
+                    html.Span(f"{group}: ", style={'fontWeight': '700'}),
+                    f"{rate:.1%} → DI = {di:.2f}",
+                    html.Span(" ⚠ < 0.8", className="flag-warning") if below else None,
+                ],
+                style={'marginBottom': '8px'},
+            ))
+        metric_content = html.Div([
+            html.P(
+                f"Reference group (highest rate): {ref_group} at {ref_rate:.1%}",
+                className="metric-subtitle",
+            ),
+            html.P(
+                "Disparate Impact = group rate ÷ reference rate. Values below 0.8 indicate potential discrimination (4/5ths rule).",
+                className="metric-note",
+            ),
+            html.Ul(rows, style={'paddingLeft': '20px', 'marginTop': '10px'}),
+        ])
+    else:  # Statistical Parity
+        max_rate = max(hire_rates.values())
+        min_rate = min(hire_rates.values())
+        gap = max_rate - min_rate
+        rows = []
+        for group, rate in sorted(hire_rates.items(), key=lambda x: -x[1]):
+            rows.append(html.Li(
+                [html.Span(f"{group}: ", style={'fontWeight': '700'}), f"{rate:.1%}"],
+                style={'marginBottom': '8px'},
+            ))
+        metric_content = html.Div([
+            html.P(f"Statistical Parity Gap: {gap:.1%}", className="metric-subtitle"),
+            html.P(
+                "Difference between the highest and lowest favorable outcome rates across groups. 0% = perfect parity.",
+                className="metric-note",
+            ),
+            html.Ul(rows, style={'paddingLeft': '20px', 'marginTop': '10px'}),
+        ])
 
-        di_black_white = black_rate / white_rate if white_rate else 0
-        di_latinx_white = latinx_rate / white_rate if white_rate else 0
-        result_text = f"Disparate Impact - Black vs White: {di_black_white:.2f} | Latinx vs White: {di_latinx_white:.2f}"
-    else:
-        result_text = "Equalized Odds not yet implemented."
+    # ── Disparity score ───────────────────────────────────────────────────────
+    score_df = df.copy()
+    score_df['_binary'] = (score_df[outcome_col] == favorable_str).astype(float)
+    bias_results = calculate_racial_bias_score(score_df, sensitive_column=race_col, outcome_column='_binary')
+    disparity_score = bias_results['racial_disparity_score']
 
-    # Bias score
-    bias_results = calculate_racial_bias_score(df, sensitive_column='race', outcome_column='income')
-    group_outcomes = bias_results["group_outcomes"]
-    disparity_score = bias_results["racial_disparity_score"]
+    return html.Div(className="card-container", children=[
+        html.Div(className="card chart-card", children=[
+            html.H3("Outcome Distribution"),
+            dcc.Graph(figure=fig, className="dash-graph"),
+        ]),
+        html.Div(className="card boost-card", children=[
+            html.H3("Fairness Metrics"),
+            metric_content,
+        ]),
+        html.Div(className="card boost-card", children=[
+            html.H3("Disparity Score"),
+            html.P(f"{disparity_score:.4f}", className="score-number"),
+            html.P(
+                "Max − min favorable outcome rate across all groups. Score of 0 = perfect parity.",
+                className="metric-note",
+            ),
+        ]),
+    ])
 
-    return (
-        fig,
-        html.P(result_text),
-        html.Div(children=[
-            html.P(f"Disparity Score: {disparity_score}"),
-            html.Ul([html.Li(f"{group}: {score}") for group, score in group_outcomes.items()])
-        ], style={'marginTop': '10px'})
-    )
 
-# Run app
 if __name__ == "__main__":
     app.run(debug=True, host='0.0.0.0', port=8050)
