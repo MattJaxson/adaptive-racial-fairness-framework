@@ -13,6 +13,7 @@ from typing import Any
 
 import pandas as pd
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 # ---------------------------------------------------------------------------
@@ -73,6 +74,12 @@ app = FastAPI(
     version="1.0.0",
 )
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["GET", "POST"],
+    allow_headers=["*"],
+)
 app.add_middleware(APIKeyMiddleware)
 
 
