@@ -27,7 +27,7 @@ class APIKeyMiddleware(BaseHTTPMiddleware):
     """Middleware that enforces X-API-Key header authentication."""
 
     async def dispatch(self, request: Request, call_next) -> Response:
-        if request.url.path in SKIP_AUTH_PATHS:
+        if request.url.path in SKIP_AUTH_PATHS or request.method == "OPTIONS":
             return await call_next(request)
 
         api_key = request.headers.get("X-API-Key")
