@@ -218,8 +218,12 @@ def update_dashboard(stored_data, race_col, outcome_col, favorable_value, reweig
         hire_rates[group] = favorable_weight / total_weight if total_weight > 0 else 0
 
     # ── Fairness metric panel ─────────────────────────────────────────────────
+    DEFAULT_REF_GROUP = 'White'
     if fairness_metric == 'DI':
-        ref_group = max(hire_rates, key=hire_rates.get)
+        if DEFAULT_REF_GROUP in hire_rates:
+            ref_group = DEFAULT_REF_GROUP
+        else:
+            ref_group = max(hire_rates, key=hire_rates.get)
         ref_rate = hire_rates[ref_group]
         rows = []
         for group, rate in sorted(hire_rates.items(), key=lambda x: -x[1]):

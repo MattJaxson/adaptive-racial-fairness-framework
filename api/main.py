@@ -148,14 +148,26 @@ def _build_audit_report(
     group_outcomes: dict[str, float] = {str(k): round(float(v), 4) for k, v in bias_result["group_outcomes"].items()}
     disparity_score: float = float(bias_result["racial_disparity_score"])
 
-    # Determine reference (privileged) group
+    # Determine reference (privileged) group.
+    # Default: White. Rationale — this tool measures systemic racial disadvantage,
+    # which is historically directional. White is the standard reference in EEOC
+    # Disparate Impact analysis. Falls back to highest-rate group if White is not
+    # present in the dataset, or uses caller-supplied privileged_group if provided.
+    DEFAULT_REF_GROUP = "White"
     if privileged_group and privileged_group in group_outcomes:
         ref_group = privileged_group
+    elif DEFAULT_REF_GROUP in group_outcomes:
+        ref_group = DEFAULT_REF_GROUP
     else:
         if privileged_group:
             logger.warning(
                 "privileged_group '%s' not found in data — falling back to highest-rate group.",
                 privileged_group,
+            )
+        else:
+            logger.info(
+                "'%s' not found in dataset — falling back to highest-rate group as reference.",
+                DEFAULT_REF_GROUP,
             )
         ref_group = max(group_outcomes, key=lambda g: group_outcomes[g])
 
