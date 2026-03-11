@@ -10,3 +10,9 @@ services:
       - key: COMMUNITY_DEFS_PATH
         value: data/community_definitions.json
     plan: free
+
+  - type: web
+    name: fairness-audit-landing
+    runtime: static
+    staticPublishPath: ./landing
+    plan: free

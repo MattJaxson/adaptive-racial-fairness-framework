@@ -1,0 +1,1040 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Equity Audit API — Racial Fairness as a Foundation</title>
+  <meta name="description" content="The only bias audit tool built around racial equity, not around compliance. POST your hiring data, get back structured findings and recommendations your team can act on." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    /* ─── Design tokens ─── */
+    :root {
+      --bg:          #0d0d0d;
+      --bg-1:        #111111;
+      --bg-2:        #161616;
+      --bg-3:        #1c1c1c;
+      --border:      #242424;
+      --border-soft: #1e1e1e;
+      --text:        #f0f0f0;
+      --text-muted:  #888888;
+      --text-dim:    #555555;
+      --accent:      #8b0000;
+      --accent-mid:  #a50000;
+      --accent-bright: #c0392b;
+      --accent-glow: rgba(139, 0, 0, 0.18);
+      --accent-glow-strong: rgba(139, 0, 0, 0.35);
+      --success:     #2ecc71;
+      --warning:     #f39c12;
+      --danger:      #c0392b;
+      --radius:      8px;
+      --radius-lg:   14px;
+      --font:        'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      --max-w:       1100px;
+      --transition:  0.2s ease;
+    }
+
+    /* ─── Reset ─── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 16px;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: inherit; text-decoration: none; }
+    ul { list-style: none; }
+    img { display: block; max-width: 100%; }
+
+    /* ─── Layout helpers ─── */
+    .container {
+      width: 100%;
+      max-width: var(--max-w);
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+    .section { padding: 96px 0; }
+    .section--tight { padding: 72px 0; }
+
+    /* ─── Typography ─── */
+    .eyebrow {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--accent-bright);
+      margin-bottom: 20px;
+    }
+    h1, h2, h3 { line-height: 1.2; font-weight: 700; }
+    h1 { font-size: clamp(2.2rem, 5vw, 3.6rem); letter-spacing: -0.03em; }
+    h2 { font-size: clamp(1.6rem, 3.5vw, 2.4rem); letter-spacing: -0.02em; }
+    h3 { font-size: 1.1rem; font-weight: 600; }
+    p { color: var(--text-muted); }
+
+    /* ─── Buttons ─── */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 13px 26px;
+      border-radius: var(--radius);
+      font-family: var(--font);
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: background var(--transition), box-shadow var(--transition), transform var(--transition);
+      text-decoration: none;
+    }
+    .btn:active { transform: translateY(1px); }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+    }
+    .btn-primary:hover {
+      background: var(--accent-mid);
+      box-shadow: 0 0 20px var(--accent-glow-strong);
+    }
+
+    .btn-secondary {
+      background: transparent;
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .btn-secondary:hover {
+      border-color: #3a3a3a;
+      background: var(--bg-3);
+    }
+
+    .btn-run {
+      background: var(--accent);
+      color: #fff;
+      padding: 14px 32px;
+      font-size: 15px;
+      width: 100%;
+      justify-content: center;
+    }
+    .btn-run:hover {
+      background: var(--accent-mid);
+      box-shadow: 0 0 24px var(--accent-glow-strong);
+    }
+    .btn-run:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    /* ─── Nav ─── */
+    .nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      border-bottom: 1px solid var(--border-soft);
+      background: rgba(13, 13, 13, 0.92);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+    }
+    .nav__inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 64px;
+    }
+    .nav__logo {
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .nav__logo-mark {
+      width: 28px;
+      height: 28px;
+      background: var(--accent);
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      font-weight: 800;
+      color: #fff;
+      flex-shrink: 0;
+    }
+    .nav__links {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .nav__link {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-muted);
+      padding: 6px 12px;
+      border-radius: 6px;
+      transition: color var(--transition), background var(--transition);
+    }
+    .nav__link:hover { color: var(--text); background: var(--bg-3); }
+    .nav__cta {
+      font-size: 13px;
+      font-weight: 600;
+      color: #fff;
+      background: var(--accent);
+      padding: 8px 18px;
+      border-radius: var(--radius);
+      transition: background var(--transition), box-shadow var(--transition);
+    }
+    .nav__cta:hover {
+      background: var(--accent-mid);
+      box-shadow: 0 0 16px var(--accent-glow-strong);
+    }
+
+    /* ─── Hero ─── */
+    .hero {
+      padding: 120px 0 96px;
+      position: relative;
+      overflow: hidden;
+    }
+    .hero::before {
+      content: '';
+      position: absolute;
+      top: -180px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 700px;
+      height: 700px;
+      background: radial-gradient(circle, var(--accent-glow) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .hero__inner { position: relative; z-index: 1; max-width: 820px; }
+    .hero__badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--bg-3);
+      border: 1px solid var(--border);
+      border-radius: 100px;
+      padding: 6px 14px 6px 8px;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-muted);
+      margin-bottom: 32px;
+    }
+    .hero__badge-dot {
+      width: 6px;
+      height: 6px;
+      background: var(--success);
+      border-radius: 50%;
+      animation: pulse-dot 2.4s ease-in-out infinite;
+    }
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+    .hero h1 {
+      margin-bottom: 24px;
+      color: var(--text);
+    }
+    .hero h1 em {
+      font-style: normal;
+      color: var(--accent-bright);
+    }
+    .hero__sub {
+      font-size: 1.15rem;
+      color: var(--text-muted);
+      max-width: 580px;
+      margin-bottom: 40px;
+      line-height: 1.7;
+    }
+    .hero__actions {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    /* ─── Problem ─── */
+    .problem { background: var(--bg-1); border-top: 1px solid var(--border-soft); border-bottom: 1px solid var(--border-soft); }
+    .problem__grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 2px;
+    }
+    .problem__item {
+      padding: 48px 36px;
+      border-right: 1px solid var(--border-soft);
+    }
+    .problem__item:last-child { border-right: none; }
+    .problem__number {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      color: var(--accent-bright);
+      margin-bottom: 14px;
+    }
+    .problem__item h3 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 10px;
+      letter-spacing: -0.01em;
+    }
+    .problem__item p { font-size: 14px; line-height: 1.65; }
+
+    /* ─── How it works ─── */
+    .how__header { margin-bottom: 64px; }
+    .how__steps {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 2px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+    }
+    .how__step {
+      background: var(--bg-2);
+      padding: 40px 36px;
+      border-right: 1px solid var(--border);
+      position: relative;
+    }
+    .how__step:last-child { border-right: none; }
+    .how__step-num {
+      width: 36px;
+      height: 36px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text-muted);
+      margin-bottom: 20px;
+    }
+    .how__step-icon {
+      font-size: 24px;
+      margin-bottom: 16px;
+      display: block;
+    }
+    .how__step h3 {
+      color: var(--text);
+      margin-bottom: 10px;
+    }
+    .how__step p { font-size: 14px; line-height: 1.65; }
+
+    /* ─── Demo ─── */
+    .demo { background: var(--bg-1); border-top: 1px solid var(--border-soft); border-bottom: 1px solid var(--border-soft); }
+    .demo__header { margin-bottom: 48px; }
+    .demo__layout {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 2px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+    }
+    .demo__input-panel,
+    .demo__output-panel {
+      background: var(--bg-2);
+      padding: 36px;
+    }
+    .demo__input-panel { border-right: 1px solid var(--border); }
+    .demo__panel-label {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      margin-bottom: 20px;
+    }
+
+    .field-group { margin-bottom: 20px; }
+    .field-group label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+      letter-spacing: 0.02em;
+    }
+    .field-group input,
+    .field-group textarea {
+      width: 100%;
+      background: var(--bg-3);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 13px;
+      padding: 10px 14px;
+      transition: border-color var(--transition);
+      outline: none;
+      resize: none;
+    }
+    .field-group input:focus,
+    .field-group textarea:focus { border-color: var(--accent); }
+    .field-group textarea { font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace; font-size: 12px; line-height: 1.6; }
+
+    .field-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+    }
+
+    /* Output panel */
+    .demo__output-panel { display: flex; flex-direction: column; }
+    .demo__placeholder {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      color: var(--text-dim);
+      gap: 12px;
+      padding: 40px 0;
+    }
+    .demo__placeholder-icon { font-size: 32px; opacity: 0.4; }
+    .demo__placeholder p { font-size: 13px; }
+
+    .demo__loading {
+      flex: 1;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      color: var(--text-muted);
+      font-size: 13px;
+    }
+    .spinner {
+      width: 28px;
+      height: 28px;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent-bright);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .demo__results { display: none; }
+
+    .result-section { margin-bottom: 28px; }
+    .result-section:last-child { margin-bottom: 0; }
+    .result-label {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      margin-bottom: 12px;
+    }
+
+    .result-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+    .result-table th {
+      text-align: left;
+      padding: 8px 10px;
+      background: var(--bg-3);
+      color: var(--text-muted);
+      font-weight: 600;
+      font-size: 11px;
+      letter-spacing: 0.04em;
+      border-bottom: 1px solid var(--border);
+    }
+    .result-table td {
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--border-soft);
+      color: var(--text);
+    }
+    .result-table tr:last-child td { border-bottom: none; }
+    .result-table tr.flagged td { background: rgba(139, 0, 0, 0.08); }
+    .result-table tr.flagged td:first-child { border-left: 2px solid var(--accent-bright); }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+    .badge-danger { background: rgba(192, 57, 43, 0.2); color: var(--danger); }
+    .badge-ok { background: rgba(46, 204, 113, 0.15); color: var(--success); }
+
+    .findings-list { padding-left: 0; }
+    .findings-list li {
+      font-size: 13px;
+      color: var(--text-muted);
+      padding: 6px 0 6px 18px;
+      border-bottom: 1px solid var(--border-soft);
+      position: relative;
+      line-height: 1.55;
+    }
+    .findings-list li:last-child { border-bottom: none; }
+    .findings-list li::before {
+      content: '—';
+      position: absolute;
+      left: 0;
+      color: var(--text-dim);
+    }
+
+    .recommendation-box {
+      background: var(--bg-3);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--accent-bright);
+      border-radius: var(--radius);
+      padding: 14px 16px;
+      font-size: 13px;
+      color: var(--text-muted);
+      line-height: 1.6;
+    }
+
+    .error-box {
+      background: rgba(139, 0, 0, 0.08);
+      border: 1px solid rgba(139, 0, 0, 0.3);
+      border-radius: var(--radius);
+      padding: 14px 16px;
+      font-size: 13px;
+      color: #e57373;
+      line-height: 1.6;
+      display: none;
+    }
+
+    /* ─── Differentiators ─── */
+    .diff__header { margin-bottom: 64px; }
+    .diff__cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+      gap: 16px;
+    }
+    .diff__card {
+      background: var(--bg-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 36px 32px;
+      transition: border-color var(--transition), transform var(--transition);
+    }
+    .diff__card:hover {
+      border-color: #2e2e2e;
+      transform: translateY(-2px);
+    }
+    .diff__card-icon {
+      width: 44px;
+      height: 44px;
+      background: var(--accent-glow);
+      border: 1px solid rgba(139, 0, 0, 0.25);
+      border-radius: var(--radius);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      margin-bottom: 20px;
+    }
+    .diff__card h3 {
+      color: var(--text);
+      margin-bottom: 12px;
+      font-size: 1rem;
+    }
+    .diff__card p { font-size: 14px; line-height: 1.7; }
+
+    /* ─── Footer ─── */
+    .footer {
+      border-top: 1px solid var(--border-soft);
+      padding: 48px 0;
+    }
+    .footer__inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+      flex-wrap: wrap;
+    }
+    .footer__left { display: flex; flex-direction: column; gap: 6px; }
+    .footer__wordmark { font-size: 14px; font-weight: 700; letter-spacing: -0.02em; }
+    .footer__tagline { font-size: 12px; color: var(--text-dim); }
+    .footer__links { display: flex; align-items: center; gap: 20px; }
+    .footer__link {
+      font-size: 13px;
+      color: var(--text-dim);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: color var(--transition);
+    }
+    .footer__link:hover { color: var(--text-muted); }
+    .footer__link svg { width: 16px; height: 16px; }
+
+    /* ─── Divider ─── */
+    .section-divider {
+      width: 40px;
+      height: 2px;
+      background: var(--accent);
+      border-radius: 2px;
+      margin-bottom: 24px;
+    }
+
+    /* ─── Responsive ─── */
+    @media (max-width: 768px) {
+      .nav__links { display: none; }
+      .hero { padding: 80px 0 64px; }
+      .section { padding: 64px 0; }
+      .problem__item { border-right: none; border-bottom: 1px solid var(--border-soft); }
+      .problem__item:last-child { border-bottom: none; }
+      .how__step { border-right: none; border-bottom: 1px solid var(--border); }
+      .how__step:last-child { border-bottom: none; }
+      .demo__layout { grid-template-columns: 1fr; }
+      .demo__input-panel { border-right: none; border-bottom: 1px solid var(--border); }
+      .field-row { grid-template-columns: 1fr; }
+      .footer__inner { flex-direction: column; align-items: flex-start; }
+    }
+
+    @media (max-width: 480px) {
+      .container { padding: 0 16px; }
+      h1 { font-size: 2rem; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ─── Nav ─── -->
+  <header class="nav">
+    <div class="container">
+      <div class="nav__inner">
+        <a href="/" class="nav__logo">
+          <div class="nav__logo-mark">E</div>
+          <span>Equity Audit API</span>
+        </a>
+        <nav class="nav__links" aria-label="Main navigation">
+          <a href="#how-it-works" class="nav__link">How it works</a>
+          <a href="#demo" class="nav__link">Live demo</a>
+          <a href="#why-different" class="nav__link">Why different</a>
+          <a href="https://adaptive-racial-fairness-framework.onrender.com/docs" class="nav__cta" target="_blank" rel="noopener">View docs</a>
+        </nav>
+      </div>
+    </div>
+  </header>
+
+  <main>
+
+    <!-- ─── Hero ─── -->
+    <section class="hero" aria-labelledby="hero-heading">
+      <div class="container">
+        <div class="hero__inner">
+          <div class="hero__badge">
+            <span class="hero__badge-dot" aria-hidden="true"></span>
+            API live — free tier available
+          </div>
+          <h1 id="hero-heading">
+            The only bias audit tool built around <em>racial equity</em>, not around compliance.
+          </h1>
+          <p class="hero__sub">
+            POST your hiring or outcome dataset. Get back Disparate Impact ratios, Statistical Parity gaps, and plain-English findings with clear flags — built for teams who need to act, not just report.
+          </p>
+          <div class="hero__actions">
+            <a href="#demo" class="btn btn-primary">
+              <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><polygon points="5,3 19,12 5,21"/></svg>
+              Try the API
+            </a>
+            <a href="https://adaptive-racial-fairness-framework.onrender.com/docs" class="btn btn-secondary" target="_blank" rel="noopener">
+              View docs
+              <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17L17 7M7 7h10v10"/></svg>
+            </a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── Problem ─── -->
+    <section class="problem section--tight" aria-labelledby="problem-heading">
+      <div class="container">
+        <div class="problem__grid">
+          <div class="problem__item">
+            <div class="problem__number">01</div>
+            <h3>Race treated as a checkbox</h3>
+            <p>Most fairness tools list race as one variable in a menu of 50 demographic attributes — weighted the same as zip code. That is not a racial equity analysis. That is a spreadsheet.</p>
+          </div>
+          <div class="problem__item">
+            <div class="problem__number">02</div>
+            <h3>The 4/5ths rule exists for a reason</h3>
+            <p>The EEOC's Disparate Impact threshold was codified in law because systemic racial bias in hiring is measurable. Most audit tools don't surface it clearly. This one is built around it.</p>
+          </div>
+          <div class="problem__item">
+            <div class="problem__number">03</div>
+            <h3>Your data already has the answer</h3>
+            <p>You don't need a new data collection initiative. The disparity is already in your hiring records. You need the right lens to see it — and findings your legal team can actually use.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── How it works ─── -->
+    <section class="section" id="how-it-works" aria-labelledby="how-heading">
+      <div class="container">
+        <div class="how__header">
+          <span class="eyebrow">How it works</span>
+          <div class="section-divider"></div>
+          <h2 id="how-heading">Three steps from data to decision.</h2>
+        </div>
+        <div class="how__steps" role="list">
+          <div class="how__step" role="listitem">
+            <div class="how__step-num" aria-hidden="true">1</div>
+            <span class="how__step-icon" aria-hidden="true">📤</span>
+            <h3>Send your dataset</h3>
+            <p>POST a CSV or JSON array of individual records. Include a race column and an outcome column — hired, promoted, selected. That's all you need.</p>
+          </div>
+          <div class="how__step" role="listitem">
+            <div class="how__step-num" aria-hidden="true">2</div>
+            <span class="how__step-icon" aria-hidden="true">📊</span>
+            <h3>We calculate what matters</h3>
+            <p>Disparate Impact ratio per racial group against the highest-performing group. Statistical Parity gap. An aggregate Disparity Score. All flagged against the EEOC 0.8 legal threshold.</p>
+          </div>
+          <div class="how__step" role="listitem">
+            <div class="how__step-num" aria-hidden="true">3</div>
+            <span class="how__step-icon" aria-hidden="true">📋</span>
+            <h3>Get findings you can act on</h3>
+            <p>Plain-English findings and a recommendation — written for CHROs, legal teams, and DEI leads. Not a wall of numbers for your data science team to interpret.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── Live Demo ─── -->
+    <section class="demo section" id="demo" aria-labelledby="demo-heading">
+      <div class="container">
+        <div class="demo__header">
+          <span class="eyebrow">Live demo</span>
+          <div class="section-divider"></div>
+          <h2 id="demo-heading">Run a real audit. Right now.</h2>
+          <p style="margin-top: 12px; max-width: 520px;">The data below is pre-loaded. Hit "Run Audit" to send it to the live API and see a structured fairness report returned in real time.</p>
+        </div>
+
+        <div class="demo__layout">
+          <!-- Input panel -->
+          <div class="demo__input-panel">
+            <div class="demo__panel-label">Input</div>
+
+            <div class="field-group">
+              <label for="demo-data">Dataset (JSON array)</label>
+              <textarea id="demo-data" rows="16" spellcheck="false" aria-label="JSON dataset input">[
+  {"race": "Black",  "hired": "Yes"},
+  {"race": "Black",  "hired": "No"},
+  {"race": "Black",  "hired": "No"},
+  {"race": "Black",  "hired": "No"},
+  {"race": "White",  "hired": "Yes"},
+  {"race": "White",  "hired": "Yes"},
+  {"race": "White",  "hired": "Yes"},
+  {"race": "White",  "hired": "No"},
+  {"race": "Latinx", "hired": "Yes"},
+  {"race": "Latinx", "hired": "No"},
+  {"race": "Latinx", "hired": "No"},
+  {"race": "Latinx", "hired": "No"}
+]</textarea>
+            </div>
+
+            <div class="field-row">
+              <div class="field-group">
+                <label for="demo-race-col">race_col</label>
+                <input type="text" id="demo-race-col" value="race" autocomplete="off" />
+              </div>
+              <div class="field-group">
+                <label for="demo-outcome-col">outcome_col</label>
+                <input type="text" id="demo-outcome-col" value="hired" autocomplete="off" />
+              </div>
+              <div class="field-group">
+                <label for="demo-favorable">favorable_value</label>
+                <input type="text" id="demo-favorable" value="Yes" autocomplete="off" />
+              </div>
+            </div>
+
+            <button class="btn btn-run" id="demo-btn" type="button">
+              <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><polygon points="5,3 19,12 5,21"/></svg>
+              Run Audit
+            </button>
+          </div>
+
+          <!-- Output panel -->
+          <div class="demo__output-panel" id="demo-output-panel">
+            <div class="demo__panel-label">Results</div>
+
+            <div class="demo__placeholder" id="demo-placeholder" aria-live="polite">
+              <div class="demo__placeholder-icon" aria-hidden="true">◎</div>
+              <p>Results will appear here after you run the audit.</p>
+            </div>
+
+            <div class="demo__loading" id="demo-loading" aria-live="polite" aria-label="Loading audit results">
+              <div class="spinner" role="status" aria-hidden="true"></div>
+              <span>Running audit…</span>
+            </div>
+
+            <div class="error-box" id="demo-error" role="alert"></div>
+
+            <div class="demo__results" id="demo-results" aria-live="polite">
+              <!-- Populated by JS -->
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── Why different ─── -->
+    <section class="section" id="why-different" aria-labelledby="diff-heading">
+      <div class="container">
+        <div class="diff__header">
+          <span class="eyebrow">What makes this different</span>
+          <div class="section-divider"></div>
+          <h2 id="diff-heading">Built for racial equity. Not bolted on.</h2>
+        </div>
+        <div class="diff__cards">
+          <div class="diff__card">
+            <div class="diff__card-icon" aria-hidden="true">🧭</div>
+            <h3>Community-defined fairness</h3>
+            <p>You define what "fair" means for your context — not engineers, not statisticians. The communities most affected by algorithmic decisions should have the most say in how fairness is measured.</p>
+          </div>
+          <div class="diff__card">
+            <div class="diff__card-icon" aria-hidden="true">⬛</div>
+            <h3>Race as the foundation</h3>
+            <p>Not a checkbox in a list of 50 metrics. Racial equity is the primary lens — every calculation, every output, every flag is built around it. The architecture reflects the intent.</p>
+          </div>
+          <div class="diff__card">
+            <div class="diff__card-icon" aria-hidden="true">📌</div>
+            <h3>Actionable, not academic</h3>
+            <p>Plain-English findings with clear flags. Built for CHROs, legal teams, and DEI leads who need to present findings to a board — not data scientists who want another model to tune.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ─── Footer ─── -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer__inner">
+        <div class="footer__left">
+          <span class="footer__wordmark">Equity Audit API</span>
+          <span class="footer__tagline">Built to make racial fairness measurable.</span>
+        </div>
+        <div class="footer__links">
+          <a href="https://github.com/MattJaxson/adaptive-racial-fairness-framework" class="footer__link" target="_blank" rel="noopener" aria-label="View source on GitHub">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M12 2C6.477 2 2 6.484 2 12.021c0 4.428 2.865 8.184 6.839 9.504.5.092.682-.217.682-.482 0-.237-.009-.868-.013-1.703-2.782.605-3.369-1.342-3.369-1.342-.454-1.155-1.11-1.463-1.11-1.463-.908-.62.069-.608.069-.608 1.003.07 1.531 1.031 1.531 1.031.892 1.529 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844a9.59 9.59 0 012.504.337c1.909-1.296 2.747-1.026 2.747-1.026.546 1.378.203 2.397.1 2.65.64.7 1.028 1.595 1.028 2.688 0 3.848-2.338 4.695-4.566 4.943.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.743 0 .267.18.578.688.48C19.138 20.2 22 16.447 22 12.021 22 6.484 17.523 2 12 2z"/>
+            </svg>
+            GitHub
+          </a>
+          <a href="https://adaptive-racial-fairness-framework.onrender.com/docs" class="footer__link" target="_blank" rel="noopener">
+            API Docs
+          </a>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ─── Demo JS ─── -->
+  <script>
+    (function () {
+      'use strict';
+
+      const API_BASE = 'https://adaptive-racial-fairness-framework.onrender.com';
+      const API_KEY  = 'dev-key-12345';
+      const TIMEOUT_MS = 30000;
+
+      const btn         = document.getElementById('demo-btn');
+      const placeholder = document.getElementById('demo-placeholder');
+      const loading     = document.getElementById('demo-loading');
+      const errorBox    = document.getElementById('demo-error');
+      const results     = document.getElementById('demo-results');
+
+      function setState(state) {
+        placeholder.style.display = state === 'idle'    ? 'flex'  : 'none';
+        loading.style.display     = state === 'loading' ? 'flex'  : 'none';
+        errorBox.style.display    = state === 'error'   ? 'block' : 'none';
+        results.style.display     = state === 'results' ? 'block' : 'none';
+      }
+
+      function fmt(n) {
+        if (n === null || n === undefined) return '—';
+        if (typeof n === 'number') return n.toFixed(3);
+        return String(n);
+      }
+
+      function pct(n) {
+        if (n === null || n === undefined) return '—';
+        return (n * 100).toFixed(1) + '%';
+      }
+
+      function renderResults(data) {
+        // Normalise: the API may return data nested under a key or flat
+        const groups   = data.groups || data.group_results || data.results || null;
+        const findings = data.findings || data.plain_english_findings || [];
+        const rec      = data.recommendation || data.recommendation_text || '';
+        const flagged  = data.flagged_groups || [];
+
+        let html = '';
+
+        // ── Group outcome table ──
+        if (groups && (Array.isArray(groups) || typeof groups === 'object')) {
+          const rows = Array.isArray(groups) ? groups : Object.entries(groups).map(([k, v]) => ({ group: k, ...v }));
+          if (rows.length > 0) {
+            html += `<div class="result-section">
+              <div class="result-label">Group outcomes</div>
+              <table class="result-table" aria-label="Group outcome results">
+                <thead>
+                  <tr>
+                    <th>Group</th>
+                    <th>Selection rate</th>
+                    <th>Disparate impact</th>
+                    <th>Stat. parity gap</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>`;
+
+            rows.forEach(row => {
+              const group = row.group || row.race || row.name || '—';
+              const isFlagged = flagged.includes(group) || row.flagged === true || (row.disparate_impact !== undefined && row.disparate_impact !== null && row.disparate_impact < 0.8);
+              const di   = row.disparate_impact   !== undefined ? row.disparate_impact   : row.di;
+              const sp   = row.statistical_parity_gap !== undefined ? row.statistical_parity_gap : (row.stat_parity_gap !== undefined ? row.stat_parity_gap : row.parity_gap);
+              const rate = row.selection_rate      !== undefined ? row.selection_rate      : row.rate;
+
+              html += `<tr${isFlagged ? ' class="flagged"' : ''}>
+                <td>${escHtml(String(group))}</td>
+                <td>${pct(rate)}</td>
+                <td>${fmt(di)}</td>
+                <td>${fmt(sp)}</td>
+                <td>${isFlagged
+                  ? '<span class="badge badge-danger">Flagged</span>'
+                  : '<span class="badge badge-ok">Pass</span>'}</td>
+              </tr>`;
+            });
+
+            html += `</tbody></table></div>`;
+          }
+        }
+
+        // ── Findings ──
+        const findingsList = Array.isArray(findings) ? findings : (findings ? [findings] : []);
+        if (findingsList.length > 0) {
+          html += `<div class="result-section">
+            <div class="result-label">Findings</div>
+            <ul class="findings-list" aria-label="Audit findings">`;
+          findingsList.forEach(f => {
+            html += `<li>${escHtml(String(f))}</li>`;
+          });
+          html += `</ul></div>`;
+        }
+
+        // ── Recommendation ──
+        if (rec) {
+          html += `<div class="result-section">
+            <div class="result-label">Recommendation</div>
+            <div class="recommendation-box" role="note">${escHtml(String(rec))}</div>
+          </div>`;
+        }
+
+        // ── Fallback: raw JSON if nothing structured was found ──
+        if (!html) {
+          html = `<div class="result-section">
+            <div class="result-label">Raw response</div>
+            <pre style="font-size:11px;color:var(--text-muted);white-space:pre-wrap;word-break:break-word;">${escHtml(JSON.stringify(data, null, 2))}</pre>
+          </div>`;
+        }
+
+        results.innerHTML = html;
+        setState('results');
+      }
+
+      function escHtml(str) {
+        return str
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#39;');
+      }
+
+      function showError(msg) {
+        errorBox.textContent = msg;
+        setState('error');
+      }
+
+      async function runAudit() {
+        const rawData    = document.getElementById('demo-data').value.trim();
+        const raceCol    = document.getElementById('demo-race-col').value.trim() || 'race';
+        const outcomeCol = document.getElementById('demo-outcome-col').value.trim() || 'hired';
+        const favorable  = document.getElementById('demo-favorable').value.trim() || 'Yes';
+
+        let parsed;
+        try {
+          parsed = JSON.parse(rawData);
+        } catch (e) {
+          showError('Invalid JSON — please check your dataset and try again.');
+          return;
+        }
+
+        setState('loading');
+        btn.disabled = true;
+
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+
+        const body = {
+          data:            parsed,
+          race_col:        raceCol,
+          outcome_col:     outcomeCol,
+          favorable_value: favorable
+        };
+
+        try {
+          const res = await fetch(`${API_BASE}/audit`, {
+            method:  'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-API-Key':    API_KEY
+            },
+            body:   JSON.stringify(body),
+            signal: controller.signal
+          });
+
+          clearTimeout(timer);
+
+          if (!res.ok) {
+            let detail = `HTTP ${res.status}`;
+            try {
+              const errJson = await res.json();
+              detail = errJson.detail || errJson.message || errJson.error || detail;
+            } catch (_) { /* ignore */ }
+            showError(`API error: ${detail}`);
+            return;
+          }
+
+          const data = await res.json();
+          renderResults(data);
+
+        } catch (err) {
+          clearTimeout(timer);
+          if (err.name === 'AbortError') {
+            showError('Request timed out after 30 seconds. The API may be waking up — please try again in a moment.');
+          } else {
+            showError(`Network error: ${err.message || 'Could not reach the API.'}`);
+          }
+        } finally {
+          btn.disabled = false;
+        }
+      }
+
+      btn.addEventListener('click', runAudit);
+    })();
+  </script>
+
+</body>
+</html>
