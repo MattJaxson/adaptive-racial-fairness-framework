@@ -29,6 +29,7 @@ from fairness_audit import disparate_impact  # noqa: E402
 from load_community_definitions import load_community_definitions  # noqa: E402
 from community_input import validate_community_config, is_community_valid  # noqa: E402
 from report_generator import generate_pdf_report  # noqa: E402
+from adversarial_fairlearn import adversarial_fairness_pipeline  # noqa: E402
 
 from api.auth import APIKeyMiddleware  # noqa: E402
 from api.models import JSONAuditRequest, JSONReweightRequest  # noqa: E402
@@ -537,6 +538,64 @@ async def audit_remediate(
     except Exception as exc:
         logger.exception("Unexpected error during /audit/remediate")
         raise HTTPException(status_code=500, detail=f"Processing error: {exc}") from exc
+
+
+@app.post("/audit/debias", tags=["Audit"])
+async def audit_debias(
+    file: UploadFile = File(..., description="CSV file to debias."),
+    race_col: str = Form(..., description="Sensitive attribute (race/ethnicity) column name."),
+    outcome_col: str = Form(..., description="Outcome column name."),
+    favorable_value: str = Form(..., description="Value in outcome column that counts as favorable."),
+    feature_cols: str = Form(..., description="Comma-separated list of feature columns to use for model training."),
+    constraint: str = Form(default="demographic_parity", description="Fairness constraint: 'demographic_parity'."),
+) -> JSONResponse:
+    """
+    Run adversarial debiasing via ExponentiatedGradient (fairlearn).
+
+    Trains a baseline logistic regression and a fairness-constrained model,
+    then returns pre/post mitigation accuracy, disparate impact per group,
+    and a plain-English interpretation of the improvement.
+
+    - **feature_cols**: comma-separated column names to use as model features.
+      Do NOT include the sensitive attribute column — it is used only as the
+      fairness constraint, not as a feature.
+    - **constraint**: only `demographic_parity` is supported in v1.
+    """
+    logger.info(
+        "POST /audit/debias — file=%s, race_col=%s, outcome_col=%s, features=%s",
+        file.filename, race_col, outcome_col, feature_cols,
+    )
+    try:
+        contents = await file.read()
+        if len(contents) > MAX_UPLOAD_BYTES:
+            raise HTTPException(status_code=413, detail=f"File exceeds {MAX_UPLOAD_MB}MB limit.")
+
+        df = pd.read_csv(io.BytesIO(contents))
+        df.columns = df.columns.str.strip()
+
+        parsed_features = [c.strip() for c in feature_cols.split(",") if c.strip()]
+        if not parsed_features:
+            raise HTTPException(status_code=400, detail="feature_cols cannot be empty.")
+
+        df, favorable = _coerce_favorable(df, outcome_col, favorable_value)
+
+        result = adversarial_fairness_pipeline(
+            data=df,
+            feature_cols=parsed_features,
+            outcome_col=outcome_col,
+            sensitive_col=race_col,
+            favorable_value=favorable,
+            constraint=constraint,
+        )
+    except HTTPException:
+        raise
+    except (ValueError, ImportError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception("Unexpected error during /audit/debias")
+        raise HTTPException(status_code=500, detail=f"Processing error: {exc}") from exc
+
+    return JSONResponse(content=result)
 
 
 @app.post("/reweight", tags=["Reweight"])
