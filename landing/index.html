@@ -773,7 +773,7 @@
 
             <div class="demo__loading" id="demo-loading" aria-live="polite" aria-label="Loading audit results">
               <div class="spinner" role="status" aria-hidden="true"></div>
-              <span>Running audit…</span>
+              <span id="loading-msg">Running audit…</span>
             </div>
 
             <div class="error-box" id="demo-error" role="alert"></div>
@@ -967,6 +967,40 @@
         setState('error');
       }
 
+      function setLoadingMsg(msg) {
+        document.getElementById('loading-msg').textContent = msg;
+      }
+
+      async function pingUntilAlive(maxWaitMs) {
+        const deadline = Date.now() + maxWaitMs;
+        while (Date.now() < deadline) {
+          try {
+            const res = await fetch(`${API_BASE}/health`, { method: 'GET' });
+            if (res.ok) return true;
+          } catch (_) { /* still waking */ }
+          await new Promise(r => setTimeout(r, 2000));
+        }
+        return false;
+      }
+
+      async function fetchAudit(body) {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+        try {
+          const res = await fetch(`${API_BASE}/audit`, {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json', 'X-API-Key': API_KEY },
+            body:    JSON.stringify(body),
+            signal:  controller.signal
+          });
+          clearTimeout(timer);
+          return res;
+        } catch (err) {
+          clearTimeout(timer);
+          throw err;
+        }
+      }
+
       async function runAudit() {
         const rawData    = document.getElementById('demo-data').value.trim();
         const raceCol    = document.getElementById('demo-race-col').value.trim() || 'race';
@@ -982,10 +1016,8 @@
         }
 
         setState('loading');
+        setLoadingMsg('Running audit…');
         btn.disabled = true;
-
-        const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
         const body = {
           data:            parsed,
@@ -995,17 +1027,34 @@
         };
 
         try {
-          const res = await fetch(`${API_BASE}/audit`, {
-            method:  'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'X-API-Key':    API_KEY
-            },
-            body:   JSON.stringify(body),
-            signal: controller.signal
-          });
-
-          clearTimeout(timer);
+          let res;
+          try {
+            res = await fetchAudit(body);
+          } catch (firstErr) {
+            // Connection reset or network error — API may be cold-starting on Render free tier.
+            // Ping /health until it responds, then retry once.
+            if (firstErr.name === 'AbortError') {
+              showError('Request timed out. The API may be waking up — please try again in a moment.');
+              return;
+            }
+            setLoadingMsg('API is warming up — please wait…');
+            const alive = await pingUntilAlive(60000);
+            if (!alive) {
+              showError('Could not reach the API after 60 seconds. Please try again shortly.');
+              return;
+            }
+            setLoadingMsg('Running audit…');
+            try {
+              res = await fetchAudit(body);
+            } catch (secondErr) {
+              if (secondErr.name === 'AbortError') {
+                showError('Request timed out. The API may be waking up — please try again in a moment.');
+              } else {
+                showError(`Network error: ${secondErr.message || 'Could not reach the API.'}`);
+              }
+              return;
+            }
+          }
 
           if (!res.ok) {
             let detail = `HTTP ${res.status}`;
@@ -1021,9 +1070,8 @@
           renderResults(data);
 
         } catch (err) {
-          clearTimeout(timer);
           if (err.name === 'AbortError') {
-            showError('Request timed out after 30 seconds. The API may be waking up — please try again in a moment.');
+            showError('Request timed out. The API may be waking up — please try again in a moment.');
           } else {
             showError(`Network error: ${err.message || 'Could not reach the API.'}`);
           }
