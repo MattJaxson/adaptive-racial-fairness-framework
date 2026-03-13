@@ -14,7 +14,7 @@ from typing import Any
 import pandas as pd
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 
 # ---------------------------------------------------------------------------
 # Bootstrap: make the project root importable so we can import core modules.
@@ -27,6 +27,8 @@ from racial_bias_score import calculate_racial_bias_score  # noqa: E402
 from fairness_reweight import reweight_samples_with_community  # noqa: E402
 from fairness_audit import disparate_impact  # noqa: E402
 from load_community_definitions import load_community_definitions  # noqa: E402
+from community_input import validate_community_config, is_community_valid  # noqa: E402
+from report_generator import generate_pdf_report  # noqa: E402
 
 from api.auth import APIKeyMiddleware  # noqa: E402
 from api.models import JSONAuditRequest, JSONReweightRequest  # noqa: E402
@@ -244,8 +246,19 @@ def _build_audit_report(
             "All groups meet or exceed the 0.8 Disparate Impact threshold."
         )
 
+    # Determine audit type based on community config provenance
+    audit_type = "community_valid" if is_community_valid(community_defs) else "standard"
+    provenance = community_defs.get("provenance", {})
+
     return {
         "status": "success",
+        "audit_type": audit_type,
+        "community_config": {
+            "priority_groups": community_defs.get("priority_groups", []),
+            "fairness_target": community_defs.get("fairness_target", ref_group),
+            "fairness_threshold": community_defs.get("fairness_threshold", DI_THRESHOLD),
+            "provenance": provenance if provenance else None,
+        },
         "summary": {
             "total_records": len(df),
             "groups_analyzed": list(group_outcomes.keys()),
@@ -375,7 +388,156 @@ async def audit_csv(
     return JSONResponse(content=report)
 
 
+# ---------- /audit/pdf ------------------------------------------------------
+
+@app.post("/audit/pdf", tags=["Audit"])
+async def audit_pdf(
+    file: UploadFile = File(..., description="CSV file to audit."),
+    race_col: str = Form(...),
+    outcome_col: str = Form(...),
+    favorable_value: str = Form(...),
+    privileged_group: str | None = Form(default=None),
+) -> Response:
+    """Audit a CSV dataset and return a professionally formatted PDF report."""
+    logger.info(
+        "POST /audit/pdf — file=%s, race_col=%s, outcome_col=%s",
+        file.filename,
+        race_col,
+        outcome_col,
+    )
+    try:
+        contents = await file.read()
+        if len(contents) > MAX_UPLOAD_BYTES:
+            raise HTTPException(status_code=413, detail=f"File exceeds {MAX_UPLOAD_MB}MB limit.")
+        df = pd.read_csv(io.BytesIO(contents))
+        df.columns = df.columns.str.strip()
+        report = _build_audit_report(
+            df=df,
+            race_col=race_col,
+            outcome_col=outcome_col,
+            favorable_value=favorable_value,
+            privileged_group=privileged_group,
+        )
+        pdf_bytes = generate_pdf_report(report)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("Unexpected error during /audit/pdf")
+        raise HTTPException(status_code=500, detail=f"Processing error: {exc}") from exc
+
+    filename = f"fairness_audit_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
 # ---------- /reweight -------------------------------------------------------
+
+@app.post("/audit/remediate", tags=["Audit"])
+async def audit_remediate(
+    file: UploadFile = File(..., description="CSV file to audit and remediate."),
+    race_col: str = Form(...),
+    outcome_col: str = Form(...),
+    favorable_value: str = Form(...),
+    privileged_group: str | None = Form(default=None),
+) -> JSONResponse:
+    """
+    Full remediation loop: audit → reweight → post-mitigation audit.
+    Returns pre- and post-mitigation metrics so the delta is visible.
+    """
+    logger.info(
+        "POST /audit/remediate — file=%s, race_col=%s, outcome_col=%s",
+        file.filename,
+        race_col,
+        outcome_col,
+    )
+    try:
+        contents = await file.read()
+        if len(contents) > MAX_UPLOAD_BYTES:
+            raise HTTPException(status_code=413, detail=f"File exceeds {MAX_UPLOAD_MB}MB limit.")
+        df = pd.read_csv(io.BytesIO(contents))
+        df.columns = df.columns.str.strip()
+
+        # Step 1: Pre-mitigation audit
+        pre_report = _build_audit_report(
+            df=df,
+            race_col=race_col,
+            outcome_col=outcome_col,
+            favorable_value=favorable_value,
+            privileged_group=privileged_group,
+        )
+
+        flagged_groups = pre_report["summary"]["flagged_groups"]
+        if not flagged_groups:
+            return JSONResponse(content={
+                "status": "success",
+                "message": "No flagged groups — remediation not required.",
+                "pre_mitigation": pre_report,
+                "post_mitigation": None,
+                "delta": None,
+            })
+
+        # Step 2: Reweight
+        df_copy, favorable = _coerce_favorable(df.copy(), outcome_col, favorable_value)
+        reweighted_df = reweight_samples_with_community(
+            data=df_copy,
+            race_col=race_col,
+            outcome_col=outcome_col,
+            favorable=favorable,
+            community_defs=community_defs,
+        )
+
+        # Step 3: Post-mitigation audit on reweighted data
+        # Simulate post-mitigation outcomes using sample weights as probabilities
+        import numpy as np
+        rng = np.random.default_rng(seed=42)
+        weights = reweighted_df["sample_weight"].fillna(1.0).clip(0, 10).values
+        weights_norm = weights / weights.max()
+        reweighted_df["_simulated_outcome"] = (
+            rng.random(len(reweighted_df)) < weights_norm * reweighted_df[outcome_col].eq(favorable).astype(float)
+        ).astype(int)
+
+        post_report = _build_audit_report(
+            df=reweighted_df.rename(columns={"_simulated_outcome": f"_{outcome_col}_reweighted"}),
+            race_col=race_col,
+            outcome_col=outcome_col,
+            favorable_value=favorable_value,
+            privileged_group=privileged_group,
+        )
+
+        # Step 4: Compute delta
+        pre_di = pre_report["metrics"]["disparate_impact"]
+        post_di = post_report["metrics"]["disparate_impact"]
+        delta = {
+            group: {
+                "pre": pre_di.get(group),
+                "post": post_di.get(group),
+                "change": (
+                    round(post_di[group] - pre_di[group], 4)
+                    if pre_di.get(group) is not None and post_di.get(group) is not None
+                    else None
+                ),
+            }
+            for group in set(list(pre_di.keys()) + list(post_di.keys()))
+        }
+
+        return JSONResponse(content={
+            "status": "success",
+            "flagged_groups_pre": flagged_groups,
+            "flagged_groups_post": post_report["summary"]["flagged_groups"],
+            "pre_mitigation": pre_report,
+            "post_mitigation": post_report,
+            "delta": delta,
+        })
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("Unexpected error during /audit/remediate")
+        raise HTTPException(status_code=500, detail=f"Processing error: {exc}") from exc
+
 
 @app.post("/reweight", tags=["Reweight"])
 async def reweight_json(request: JSONReweightRequest) -> JSONResponse:
