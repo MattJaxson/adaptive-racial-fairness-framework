@@ -34,7 +34,7 @@ from adversarial_fairlearn import adversarial_fairness_pipeline  # noqa: E402
 from api.auth import APIKeyMiddleware  # noqa: E402
 from api.models import JSONAuditRequest, JSONReweightRequest  # noqa: E402
 
-DI_THRESHOLD = 0.8          # 4/5ths rule legal threshold
+DI_THRESHOLD_DEFAULT = 0.8  # EEOC 4/5ths rule — used only when community config has no threshold
 MAX_UPLOAD_MB = 50
 MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024
 
@@ -145,6 +145,10 @@ def _build_audit_report(
     df, favorable = _coerce_favorable(df, outcome_col, favorable_value)
     _validate_columns(df, race_col, outcome_col)
 
+    # Community-defined threshold — the core differentiator of this framework.
+    # If the community set a threshold, use it. Otherwise fall back to EEOC 0.8.
+    di_threshold: float = float(community_defs.get("fairness_threshold", DI_THRESHOLD_DEFAULT))
+
     # Bias score — requires a numeric binary column
     df['_binary_outcome'] = (df[outcome_col] == favorable).astype(float)
     bias_result = calculate_racial_bias_score(df, sensitive_column=race_col, outcome_column='_binary_outcome')
@@ -196,8 +200,8 @@ def _build_audit_report(
     all_rates = list(group_outcomes.values())
     stat_parity_gap = round((max(all_rates) - min(all_rates)) * 100, 2) if all_rates else 0.0
 
-    # Flagged groups (DI < 0.8)
-    flagged_groups = [g for g, di in di_ratios.items() if di is not None and di < DI_THRESHOLD]
+    # Flagged groups — uses community-defined threshold, not hardcoded 0.8
+    flagged_groups = [g for g, di in di_ratios.items() if di is not None and di < di_threshold]
 
     # Plain-English findings
     findings: list[str] = []
@@ -213,12 +217,12 @@ def _build_audit_report(
                 f"Disparate Impact is undefined because the reference group ({ref_group}) "
                 f"has no positive outcomes."
             )
-        elif di < DI_THRESHOLD:
+        elif di < di_threshold:
             severity = "substantially below" if di < 0.5 else "below"
             findings.append(
                 f"{group} applicants had a favorable outcome rate of {pct}% compared to "
                 f"{ref_pct}% for the reference group ({ref_group}), "
-                f"a Disparate Impact ratio of {di:.2f} — {severity} the {DI_THRESHOLD} legal threshold."
+                f"a Disparate Impact ratio of {di:.2f} — {severity} the {di_threshold} threshold."
             )
         else:
             findings.append(
@@ -238,13 +242,13 @@ def _build_audit_report(
         group_word = "group falls" if n == 1 else "groups fall"
         recommendation = (
             f"Immediate review recommended. {n} {group_word} below the "
-            f"Disparate Impact threshold of {DI_THRESHOLD} ({', '.join(flagged_groups)}), which may indicate "
+            f"Disparate Impact threshold of {di_threshold} ({', '.join(flagged_groups)}), which may indicate "
             f"discriminatory outcomes under the 4/5ths rule."
         )
     else:
         recommendation = (
             "The data shows no statistically significant disparate impact across analyzed groups. "
-            "All groups meet or exceed the 0.8 Disparate Impact threshold."
+            f"All groups meet or exceed the {di_threshold} Disparate Impact threshold."
         )
 
     # Determine audit type based on community config provenance
@@ -257,7 +261,7 @@ def _build_audit_report(
         "community_config": {
             "priority_groups": community_defs.get("priority_groups", []),
             "fairness_target": community_defs.get("fairness_target", ref_group),
-            "fairness_threshold": community_defs.get("fairness_threshold", DI_THRESHOLD),
+            "fairness_threshold": di_threshold,
             "provenance": provenance if provenance else None,
         },
         "summary": {
@@ -461,6 +465,8 @@ async def audit_remediate(
         df = pd.read_csv(io.BytesIO(contents))
         df.columns = df.columns.str.strip()
 
+        di_threshold = float(community_defs.get("fairness_threshold", DI_THRESHOLD_DEFAULT))
+
         # Step 1: Pre-mitigation audit
         pre_report = _build_audit_report(
             df=df,
@@ -490,23 +496,56 @@ async def audit_remediate(
             community_defs=community_defs,
         )
 
-        # Step 3: Post-mitigation audit on reweighted data
-        # Simulate post-mitigation outcomes using sample weights as probabilities
-        import numpy as np
-        rng = np.random.default_rng(seed=42)
-        weights = reweighted_df["sample_weight"].fillna(1.0).clip(0, 10).values
-        weights_norm = weights / weights.max()
-        reweighted_df["_simulated_outcome"] = (
-            rng.random(len(reweighted_df)) < weights_norm * reweighted_df[outcome_col].eq(favorable).astype(float)
-        ).astype(int)
+        # Step 3: Post-mitigation metrics — computed from weighted outcome rates.
+        # Instead of simulating random outcomes (which is non-deterministic and
+        # mathematically incoherent), we compute what the group outcome rates
+        # *would be* under the reweighted distribution and report those directly.
+        binary = (reweighted_df[outcome_col] == favorable).astype(float)
+        sw = reweighted_df["sample_weight"].fillna(1.0)
 
-        post_report = _build_audit_report(
-            df=reweighted_df.rename(columns={"_simulated_outcome": f"_{outcome_col}_reweighted"}),
-            race_col=race_col,
-            outcome_col=outcome_col,
-            favorable_value=favorable_value,
-            privileged_group=privileged_group,
-        )
+        post_group_rates: dict[str, float] = {}
+        for group in reweighted_df[race_col].unique():
+            mask = reweighted_df[race_col] == group
+            weighted_sum = (binary[mask] * sw[mask]).sum()
+            weight_total = sw[mask].sum()
+            post_group_rates[str(group)] = round(float(weighted_sum / weight_total), 4) if weight_total > 0 else 0.0
+
+        # Compute post-mitigation DI using same reference group as pre-report
+        pre_ref_group = privileged_group or community_defs.get("fairness_target", "White")
+        if pre_ref_group not in post_group_rates:
+            pre_ref_group = max(post_group_rates, key=lambda g: post_group_rates[g])
+        post_ref_rate = post_group_rates.get(pre_ref_group, 0.0)
+
+        post_di: dict[str, float | None] = {}
+        for group, rate in post_group_rates.items():
+            if group == pre_ref_group:
+                post_di[group] = 1.0
+            elif post_ref_rate == 0:
+                post_di[group] = None
+            else:
+                post_di[group] = round(rate / post_ref_rate, 4)
+
+        post_flagged = [g for g, di in post_di.items() if di is not None and di < di_threshold]
+
+        post_report = {
+            "status": "success",
+            "audit_type": pre_report["audit_type"],
+            "community_config": pre_report["community_config"],
+            "summary": {
+                "total_records": len(reweighted_df),
+                "groups_analyzed": list(post_group_rates.keys()),
+                "outcome_column": outcome_col,
+                "favorable_value": favorable_value,
+                "flagged_groups": post_flagged,
+            },
+            "metrics": {
+                "disparity_score": round(max(post_group_rates.values()) - min(post_group_rates.values()), 4),
+                "group_outcomes": post_group_rates,
+                "disparate_impact": post_di,
+                "statistical_parity_gap": round((max(post_group_rates.values()) - min(post_group_rates.values())) * 100, 2),
+            },
+            "note": "Post-mitigation metrics are computed from weighted outcome rates, not from a new model.",
+        }
 
         # Step 4: Compute delta
         pre_di = pre_report["metrics"]["disparate_impact"]

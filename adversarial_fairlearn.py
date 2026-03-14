@@ -188,7 +188,12 @@ def _group_positive_rates(y_pred: np.ndarray, s: pd.Series) -> dict[str, float]:
 
 
 def _disparate_impact_from_rates(rates: dict[str, float]) -> dict[str, float]:
-    """DI ratio for each group relative to the highest-rate group."""
+    """DI ratio for each group relative to the highest-rate group.
+
+    Equivalent to unprivileged_rate / privileged_rate when the privileged
+    (reference) group is defined as the group with the highest positive
+    prediction rate — consistent with fairness_audit.disparate_impact().
+    """
     if not rates:
         return {}
     max_rate = max(rates.values())
