@@ -1,0 +1,6 @@
+{
+  "registry_version": "1.0",
+  "description": "Index of published community fairness configurations",
+  "schema": "../specs/community_fairness_config_v1.schema.json",
+  "configs": []
+}

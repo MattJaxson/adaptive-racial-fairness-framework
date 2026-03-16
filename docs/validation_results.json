@@ -1,0 +1,227 @@
+{
+  "HR Hiring": {
+    "n_records": 8,
+    "n_groups": 3,
+    "default": {
+      "reference_group": "White",
+      "threshold": 0.8,
+      "group_rates": {
+        "Black": 0.6667,
+        "Latinx": 0.5,
+        "White": 0.6667
+      },
+      "disparate_impact": {
+        "Black": 1.0,
+        "Latinx": 0.75,
+        "White": 1.0
+      },
+      "flagged_groups": [
+        "Latinx"
+      ],
+      "disparity_score": 0.1667
+    },
+    "survey_proxy": {
+      "reference_group": "White",
+      "threshold": 0.88,
+      "group_rates": {
+        "Black": 0.6667,
+        "Latinx": 0.5,
+        "White": 0.6667
+      },
+      "disparate_impact": {
+        "Black": 1.0,
+        "Latinx": 0.75,
+        "White": 1.0
+      },
+      "flagged_groups": [
+        "Latinx"
+      ],
+      "disparity_score": 0.1667
+    },
+    "community": {
+      "reference_group": "White",
+      "threshold": 0.9,
+      "group_rates": {
+        "Black": 0.6667,
+        "Latinx": 0.5,
+        "White": 0.6667
+      },
+      "disparate_impact": {
+        "Black": 1.0,
+        "Latinx": 0.75,
+        "White": 1.0
+      },
+      "flagged_groups": [
+        "Latinx"
+      ],
+      "disparity_score": 0.1667
+    },
+    "newly_flagged_proxy": [],
+    "newly_flagged": [],
+    "delta_flag_count": 0
+  },
+  "HMDA Lending (Michigan)": {
+    "n_records": 3831,
+    "n_groups": 5,
+    "default": {
+      "reference_group": "White",
+      "threshold": 0.8,
+      "group_rates": {
+        "American Indian or Alaska Native": 0.1379,
+        "Asian": 0.3233,
+        "Black or African American": 0.3434,
+        "Native Hawaiian or Other Pacific Islander": 0.2,
+        "White": 0.42
+      },
+      "disparate_impact": {
+        "American Indian or Alaska Native": 0.3283,
+        "Asian": 0.7698,
+        "Black or African American": 0.8176,
+        "Native Hawaiian or Other Pacific Islander": 0.4762,
+        "White": 1.0
+      },
+      "flagged_groups": [
+        "American Indian or Alaska Native",
+        "Asian",
+        "Native Hawaiian or Other Pacific Islander"
+      ],
+      "disparity_score": 0.2821
+    },
+    "survey_proxy": {
+      "reference_group": "White",
+      "threshold": 0.88,
+      "group_rates": {
+        "American Indian or Alaska Native": 0.1379,
+        "Asian": 0.3233,
+        "Black or African American": 0.3434,
+        "Native Hawaiian or Other Pacific Islander": 0.2,
+        "White": 0.42
+      },
+      "disparate_impact": {
+        "American Indian or Alaska Native": 0.3283,
+        "Asian": 0.7698,
+        "Black or African American": 0.8176,
+        "Native Hawaiian or Other Pacific Islander": 0.4762,
+        "White": 1.0
+      },
+      "flagged_groups": [
+        "American Indian or Alaska Native",
+        "Asian",
+        "Black or African American",
+        "Native Hawaiian or Other Pacific Islander"
+      ],
+      "disparity_score": 0.2821
+    },
+    "community": {
+      "reference_group": "White",
+      "threshold": 0.9,
+      "group_rates": {
+        "American Indian or Alaska Native": 0.1379,
+        "Asian": 0.3233,
+        "Black or African American": 0.3434,
+        "Native Hawaiian or Other Pacific Islander": 0.2,
+        "White": 0.42
+      },
+      "disparate_impact": {
+        "American Indian or Alaska Native": 0.3283,
+        "Asian": 0.7698,
+        "Black or African American": 0.8176,
+        "Native Hawaiian or Other Pacific Islander": 0.4762,
+        "White": 1.0
+      },
+      "flagged_groups": [
+        "American Indian or Alaska Native",
+        "Asian",
+        "Black or African American",
+        "Native Hawaiian or Other Pacific Islander"
+      ],
+      "disparity_score": 0.2821
+    },
+    "newly_flagged_proxy": [
+      "Black or African American"
+    ],
+    "newly_flagged": [
+      "Black or African American"
+    ],
+    "delta_flag_count": 1
+  },
+  "COMPAS Recidivism": {
+    "n_records": 6837,
+    "n_groups": 5,
+    "default": {
+      "reference_group": "Caucasian",
+      "threshold": 0.8,
+      "group_rates": {
+        "African-American": 0.4857,
+        "Asian": 0.7188,
+        "Caucasian": 0.6064,
+        "Hispanic": 0.6358,
+        "Native American": 0.4444
+      },
+      "disparate_impact": {
+        "African-American": 0.801,
+        "Asian": 1.1854,
+        "Caucasian": 1.0,
+        "Hispanic": 1.0485,
+        "Native American": 0.7328
+      },
+      "flagged_groups": [
+        "Native American"
+      ],
+      "disparity_score": 0.2744
+    },
+    "survey_proxy": {
+      "reference_group": "Caucasian",
+      "threshold": 0.88,
+      "group_rates": {
+        "African-American": 0.4857,
+        "Asian": 0.7188,
+        "Caucasian": 0.6064,
+        "Hispanic": 0.6358,
+        "Native American": 0.4444
+      },
+      "disparate_impact": {
+        "African-American": 0.801,
+        "Asian": 1.1854,
+        "Caucasian": 1.0,
+        "Hispanic": 1.0485,
+        "Native American": 0.7328
+      },
+      "flagged_groups": [
+        "African-American",
+        "Native American"
+      ],
+      "disparity_score": 0.2744
+    },
+    "community": {
+      "reference_group": "Caucasian",
+      "threshold": 0.9,
+      "group_rates": {
+        "African-American": 0.4857,
+        "Asian": 0.7188,
+        "Caucasian": 0.6064,
+        "Hispanic": 0.6358,
+        "Native American": 0.4444
+      },
+      "disparate_impact": {
+        "African-American": 0.801,
+        "Asian": 1.1854,
+        "Caucasian": 1.0,
+        "Hispanic": 1.0485,
+        "Native American": 0.7328
+      },
+      "flagged_groups": [
+        "African-American",
+        "Native American"
+      ],
+      "disparity_score": 0.2744
+    },
+    "newly_flagged_proxy": [
+      "African-American"
+    ],
+    "newly_flagged": [
+      "African-American"
+    ],
+    "delta_flag_count": 1
+  }
+}

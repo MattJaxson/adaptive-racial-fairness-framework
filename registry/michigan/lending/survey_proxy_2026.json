@@ -1,0 +1,31 @@
+{
+  "cdf_version": "1.0",
+  "priority_groups": [
+    "Black or African American",
+    "American Indian or Alaska Native",
+    "Native Hawaiian or Other Pacific Islander"
+  ],
+  "fairness_target": "White",
+  "fairness_threshold": 0.88,
+  "provenance": {
+    "record_id": "proxy-survey-mi-lending-2026-001",
+    "input_protocol": "other",
+    "input_date": "2026-03-15",
+    "input_participants": 0,
+    "facilitator": "Matt Jackson",
+    "decision_method": "weighted_median",
+    "threshold_distribution": {
+      "sources": [
+        {"study": "Pew Research 2023 - Public Views About AI", "implied_theta": 0.87, "weight": 0.3},
+        {"study": "Saxena et al. 2019 - How Do Fairness Definitions Fare?", "implied_theta": 0.90, "weight": 0.3},
+        {"study": "Lee et al. 2019 - Algorithmic Jury Studies", "implied_theta": 0.88, "weight": 0.4}
+      ],
+      "weighted_median": 0.88
+    },
+    "notes": "Proxy configuration derived from published survey data. NOT community-defined. Used for pre-registration and pipeline validation only. Will be replaced by real community session output. Classified as 'standard' (not community_valid) because no community session was conducted.",
+    "low_confidence": true
+  },
+  "audit_classification": "standard",
+  "domain": "lending",
+  "jurisdiction": "Michigan"
+}

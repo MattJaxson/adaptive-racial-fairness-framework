@@ -637,6 +637,153 @@ async def audit_debias(
     return JSONResponse(content=result)
 
 
+# ---------- /audit/compliance ----------------------------------------------
+
+@app.post("/audit/compliance", tags=["Audit"])
+async def audit_compliance(
+    file: UploadFile = File(..., description="CSV file to check compliance."),
+    race_col: str = Form(...),
+    outcome_col: str = Form(...),
+    favorable_value: str = Form(...),
+    config_json: str = Form(
+        ...,
+        description=(
+            "A CDF v1.0 community fairness configuration as a JSON string. "
+            "This config defines the fairness standard the dataset is checked against. "
+            "Get published configs from the community registry or produce one via "
+            "a community input session."
+        ),
+    ),
+) -> JSONResponse:
+    """
+    Compliance check: audit a dataset against a specific community-defined
+    fairness configuration.
+
+    Unlike /audit (which uses the server's loaded community config), this
+    endpoint accepts ANY published CDF v1.0 config. This enables:
+    - Organizations checking their data against a community's published standard
+    - Regulators verifying compliance against a jurisdiction's config
+    - Researchers comparing audit outcomes across different community configs
+
+    Returns a pass/fail verdict, per-group DI, flagged groups, and the
+    provenance record of the community config used.
+    """
+    logger.info(
+        "POST /audit/compliance — file=%s, race_col=%s, outcome_col=%s",
+        file.filename, race_col, outcome_col,
+    )
+    try:
+        import json as json_mod
+
+        # Parse the community config
+        try:
+            config = json_mod.loads(config_json)
+        except json_mod.JSONDecodeError as e:
+            raise HTTPException(status_code=400, detail=f"Invalid config_json: {e}")
+
+        # Validate required fields
+        for field in ("priority_groups", "fairness_target", "fairness_threshold"):
+            if field not in config:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Community config missing required field: '{field}'",
+                )
+
+        threshold = float(config["fairness_threshold"])
+        ref_group_requested = str(config["fairness_target"])
+        priority_groups = config["priority_groups"]
+        provenance = config.get("provenance", {})
+
+        # Read the CSV
+        contents = await file.read()
+        if len(contents) > MAX_UPLOAD_BYTES:
+            raise HTTPException(status_code=413, detail=f"File exceeds {MAX_UPLOAD_MB}MB limit.")
+        df = pd.read_csv(io.BytesIO(contents))
+        df.columns = df.columns.str.strip()
+        _validate_columns(df, race_col, outcome_col)
+
+        df, favorable = _coerce_favorable(df, outcome_col, favorable_value)
+
+        # Compute group rates
+        binary = (df[outcome_col] == favorable).astype(float)
+        group_rates = binary.groupby(df[race_col]).mean().round(4).to_dict()
+        group_rates = {str(k): float(v) for k, v in group_rates.items()}
+
+        # Reference group
+        if ref_group_requested in group_rates:
+            ref = ref_group_requested
+        elif "White" in group_rates:
+            ref = "White"
+        elif "Caucasian" in group_rates:
+            ref = "Caucasian"
+        else:
+            ref = max(group_rates, key=lambda g: group_rates[g])
+
+        ref_rate = group_rates[ref]
+
+        # DI computation
+        di_ratios: dict[str, float | None] = {}
+        for group, rate in group_rates.items():
+            if group == ref:
+                di_ratios[group] = 1.0
+            elif ref_rate == 0:
+                di_ratios[group] = None
+            else:
+                di_ratios[group] = round(rate / ref_rate, 4)
+
+        flagged = [g for g, di in di_ratios.items() if di is not None and di < threshold]
+
+        # Verdict
+        passes = len(flagged) == 0
+        priority_flagged = [g for g in flagged if g in priority_groups]
+
+        # Determine audit classification from the config
+        audit_classification = "standard"
+        if provenance and provenance.get("record_id") and provenance.get("input_date"):
+            participants = provenance.get("input_participants", 0)
+            audit_classification = "community_valid" if participants >= 10 else "low_confidence"
+
+        return JSONResponse(content={
+            "status": "success",
+            "verdict": "PASS" if passes else "FAIL",
+            "audit_classification": audit_classification,
+            "community_config_used": {
+                "fairness_target": ref,
+                "fairness_threshold": threshold,
+                "priority_groups": priority_groups,
+                "provenance": provenance if provenance else None,
+            },
+            "summary": {
+                "total_records": len(df),
+                "groups_analyzed": sorted(group_rates.keys()),
+                "reference_group": ref,
+                "flagged_groups": flagged,
+                "priority_groups_flagged": priority_flagged,
+                "passes_community_standard": passes,
+            },
+            "metrics": {
+                "group_rates": group_rates,
+                "disparate_impact": di_ratios,
+                "disparity_score": round(max(group_rates.values()) - min(group_rates.values()), 4),
+            },
+            "interpretation": (
+                f"This dataset PASSES the community-defined fairness standard (θ={threshold}). "
+                f"All groups meet the minimum disparate impact ratio."
+                if passes else
+                f"This dataset FAILS the community-defined fairness standard (θ={threshold}). "
+                f"{len(flagged)} group(s) fall below the threshold: {', '.join(flagged)}."
+                + (f" Of these, {len(priority_flagged)} are community-designated priority group(s): "
+                   f"{', '.join(priority_flagged)}." if priority_flagged else "")
+            ),
+        })
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("Unexpected error during /audit/compliance")
+        raise HTTPException(status_code=500, detail=f"Processing error: {exc}") from exc
+
+
 @app.post("/reweight", tags=["Reweight"])
 async def reweight_json(request: JSONReweightRequest) -> JSONResponse:
     """Reweight a dataset supplied as a JSON body."""

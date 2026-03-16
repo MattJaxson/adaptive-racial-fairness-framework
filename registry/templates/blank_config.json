@@ -1,0 +1,36 @@
+{
+  "cdf_version": "1.0",
+  "priority_groups": [],
+  "fairness_target": "",
+  "fairness_threshold": 0.8,
+  "domain": "",
+  "jurisdiction": "",
+  "provenance": {
+    "record_id": "",
+    "input_protocol": "community_session",
+    "input_date": "",
+    "input_location": "",
+    "input_participants": 0,
+    "facilitator": "",
+    "facilitator_independent": true,
+    "demographic_representation": {},
+    "decision_method": {
+      "priority_groups": "50% participant agreement",
+      "reference_group": "simple majority vote",
+      "threshold": "median of individual responses"
+    },
+    "threshold_distribution": {
+      "min": null,
+      "max": null,
+      "median": null,
+      "mean": null,
+      "individual_responses": []
+    },
+    "dissent": [],
+    "notes": "",
+    "created_at": "",
+    "expires_at": ""
+  },
+  "audit_classification": "community_valid",
+  "custom_metrics": []
+}

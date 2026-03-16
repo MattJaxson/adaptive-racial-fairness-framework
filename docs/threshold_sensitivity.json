@@ -1,0 +1,247 @@
+{
+  "HR Hiring": {
+    "n_records": 8,
+    "reference_group": "White",
+    "groups": {
+      "Black": {
+        "rate": 0.6667,
+        "di": 1.0,
+        "flagged_at": []
+      },
+      "Latinx": {
+        "rate": 0.5,
+        "di": 0.75,
+        "flagged_at": [
+          0.8,
+          0.85,
+          0.9,
+          0.95
+        ]
+      },
+      "White": {
+        "rate": 0.6667,
+        "di": 1.0,
+        "flagged_at": []
+      }
+    },
+    "threshold_sweep": {
+      "0.7": {
+        "flagged_count": 0,
+        "flagged_groups": []
+      },
+      "0.75": {
+        "flagged_count": 0,
+        "flagged_groups": []
+      },
+      "0.8": {
+        "flagged_count": 1,
+        "flagged_groups": [
+          "Latinx"
+        ]
+      },
+      "0.85": {
+        "flagged_count": 1,
+        "flagged_groups": [
+          "Latinx"
+        ]
+      },
+      "0.9": {
+        "flagged_count": 1,
+        "flagged_groups": [
+          "Latinx"
+        ]
+      },
+      "0.95": {
+        "flagged_count": 1,
+        "flagged_groups": [
+          "Latinx"
+        ]
+      }
+    }
+  },
+  "HMDA Lending (Michigan)": {
+    "n_records": 3831,
+    "reference_group": "White",
+    "groups": {
+      "American Indian or Alaska Native": {
+        "rate": 0.1379,
+        "di": 0.3284,
+        "flagged_at": [
+          0.7,
+          0.75,
+          0.8,
+          0.85,
+          0.9,
+          0.95
+        ]
+      },
+      "Asian": {
+        "rate": 0.3233,
+        "di": 0.7696,
+        "flagged_at": [
+          0.8,
+          0.85,
+          0.9,
+          0.95
+        ]
+      },
+      "Black or African American": {
+        "rate": 0.3434,
+        "di": 0.8174,
+        "flagged_at": [
+          0.85,
+          0.9,
+          0.95
+        ]
+      },
+      "Native Hawaiian or Other Pacific Islander": {
+        "rate": 0.2,
+        "di": 0.4761,
+        "flagged_at": [
+          0.7,
+          0.75,
+          0.8,
+          0.85,
+          0.9,
+          0.95
+        ]
+      },
+      "White": {
+        "rate": 0.42,
+        "di": 1.0,
+        "flagged_at": []
+      }
+    },
+    "threshold_sweep": {
+      "0.7": {
+        "flagged_count": 2,
+        "flagged_groups": [
+          "American Indian or Alaska Native",
+          "Native Hawaiian or Other Pacific Islander"
+        ]
+      },
+      "0.75": {
+        "flagged_count": 2,
+        "flagged_groups": [
+          "American Indian or Alaska Native",
+          "Native Hawaiian or Other Pacific Islander"
+        ]
+      },
+      "0.8": {
+        "flagged_count": 3,
+        "flagged_groups": [
+          "American Indian or Alaska Native",
+          "Asian",
+          "Native Hawaiian or Other Pacific Islander"
+        ]
+      },
+      "0.85": {
+        "flagged_count": 4,
+        "flagged_groups": [
+          "American Indian or Alaska Native",
+          "Asian",
+          "Black or African American",
+          "Native Hawaiian or Other Pacific Islander"
+        ]
+      },
+      "0.9": {
+        "flagged_count": 4,
+        "flagged_groups": [
+          "American Indian or Alaska Native",
+          "Asian",
+          "Black or African American",
+          "Native Hawaiian or Other Pacific Islander"
+        ]
+      },
+      "0.95": {
+        "flagged_count": 4,
+        "flagged_groups": [
+          "American Indian or Alaska Native",
+          "Asian",
+          "Black or African American",
+          "Native Hawaiian or Other Pacific Islander"
+        ]
+      }
+    }
+  },
+  "COMPAS Recidivism": {
+    "n_records": 6837,
+    "reference_group": "Caucasian",
+    "groups": {
+      "African-American": {
+        "rate": 0.4857,
+        "di": 0.8009,
+        "flagged_at": [
+          0.85,
+          0.9,
+          0.95
+        ]
+      },
+      "Asian": {
+        "rate": 0.7188,
+        "di": 1.1854,
+        "flagged_at": []
+      },
+      "Caucasian": {
+        "rate": 0.6064,
+        "di": 1.0,
+        "flagged_at": []
+      },
+      "Hispanic": {
+        "rate": 0.6358,
+        "di": 1.0485,
+        "flagged_at": []
+      },
+      "Native American": {
+        "rate": 0.4444,
+        "di": 0.733,
+        "flagged_at": [
+          0.75,
+          0.8,
+          0.85,
+          0.9,
+          0.95
+        ]
+      }
+    },
+    "threshold_sweep": {
+      "0.7": {
+        "flagged_count": 0,
+        "flagged_groups": []
+      },
+      "0.75": {
+        "flagged_count": 1,
+        "flagged_groups": [
+          "Native American"
+        ]
+      },
+      "0.8": {
+        "flagged_count": 1,
+        "flagged_groups": [
+          "Native American"
+        ]
+      },
+      "0.85": {
+        "flagged_count": 2,
+        "flagged_groups": [
+          "African-American",
+          "Native American"
+        ]
+      },
+      "0.9": {
+        "flagged_count": 2,
+        "flagged_groups": [
+          "African-American",
+          "Native American"
+        ]
+      },
+      "0.95": {
+        "flagged_count": 2,
+        "flagged_groups": [
+          "African-American",
+          "Native American"
+        ]
+      }
+    }
+  }
+}

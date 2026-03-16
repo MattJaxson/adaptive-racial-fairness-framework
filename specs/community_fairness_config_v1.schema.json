@@ -1,0 +1,154 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://communityfairness.org/schemas/config/v1",
+  "title": "Community Fairness Configuration v1.0",
+  "description": "A machine-readable specification for community-defined algorithmic fairness parameters. This schema defines the interchange format for community fairness configurations — any tool that reads or produces this format is interoperable with the Community-Defined Fairness ecosystem.",
+  "type": "object",
+  "required": ["cdf_version", "priority_groups", "fairness_target", "fairness_threshold", "provenance"],
+  "properties": {
+    "cdf_version": {
+      "type": "string",
+      "const": "1.0",
+      "description": "Version of the Community-Defined Fairness specification this config conforms to."
+    },
+    "priority_groups": {
+      "type": "array",
+      "items": {"type": "string"},
+      "minItems": 1,
+      "description": "Racial/ethnic groups the community identified as requiring elevated scrutiny in the audit. These groups were selected by community participants, not by the auditor."
+    },
+    "fairness_target": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The reference group whose outcome rate sets the fairness benchmark. All other groups' disparate impact ratios are computed relative to this group."
+    },
+    "fairness_threshold": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "maximum": 1,
+      "description": "The minimum acceptable disparate impact ratio. Groups with DI below this threshold are flagged. The EEOC default is 0.80; communities may set this higher or lower."
+    },
+    "domain": {
+      "type": "string",
+      "enum": ["employment", "lending", "housing", "criminal_justice", "healthcare", "education", "benefits", "other"],
+      "description": "The decision domain this configuration applies to. A community may set different thresholds for different domains."
+    },
+    "jurisdiction": {
+      "type": "string",
+      "description": "The geographic or institutional scope this configuration applies to (e.g., 'Detroit, MI', 'State of Michigan', 'Acme Corp hiring')."
+    },
+    "provenance": {
+      "type": "object",
+      "required": ["record_id", "input_protocol", "input_date", "input_participants"],
+      "properties": {
+        "record_id": {
+          "type": "string",
+          "format": "uuid",
+          "description": "Unique identifier for this configuration record. Generated at creation time."
+        },
+        "input_protocol": {
+          "type": "string",
+          "enum": ["community_session", "voice_survey", "web_survey", "structured_interview", "public_hearing", "deliberative_poll", "other"],
+          "description": "The method used to collect community input."
+        },
+        "input_date": {
+          "type": "string",
+          "format": "date",
+          "description": "ISO 8601 date when the community input session took place."
+        },
+        "input_location": {
+          "type": "string",
+          "description": "Where the input session took place."
+        },
+        "input_participants": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Number of community members who participated."
+        },
+        "facilitator": {
+          "type": "string",
+          "description": "Name or role of the session facilitator."
+        },
+        "facilitator_independent": {
+          "type": "boolean",
+          "description": "Whether the facilitator is independent of the organization being audited."
+        },
+        "demographic_representation": {
+          "type": "object",
+          "additionalProperties": {"type": "integer"},
+          "description": "Breakdown of participants by racial/ethnic group (e.g., {\"Black\": 6, \"White\": 3, \"Latinx\": 5})."
+        },
+        "decision_method": {
+          "type": "object",
+          "properties": {
+            "priority_groups": {
+              "type": "string",
+              "description": "How priority groups were selected (e.g., '50% participant agreement')."
+            },
+            "reference_group": {
+              "type": "string",
+              "description": "How the reference group was selected (e.g., 'simple majority vote')."
+            },
+            "threshold": {
+              "type": "string",
+              "description": "How the threshold was determined (e.g., 'median of individual responses')."
+            }
+          },
+          "description": "Documentation of how each decision was made."
+        },
+        "threshold_distribution": {
+          "type": "object",
+          "properties": {
+            "min": {"type": "number"},
+            "max": {"type": "number"},
+            "median": {"type": "number"},
+            "mean": {"type": "number"},
+            "individual_responses": {
+              "type": "array",
+              "items": {"type": "number"}
+            }
+          },
+          "description": "Distribution of individual threshold responses from participants."
+        },
+        "dissent": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "parameter": {"type": "string"},
+              "position": {"type": "string"},
+              "participant_count": {"type": "integer"}
+            }
+          },
+          "description": "Recorded dissenting positions and how many participants held them."
+        },
+        "notes": {
+          "type": "string",
+          "description": "Free-text notes about the session."
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO 8601 timestamp when this configuration was created."
+        },
+        "expires_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO 8601 timestamp when this configuration should be re-elicited. Default: 24 months from input_date."
+        }
+      },
+      "description": "Provenance record linking this configuration to its community input source. This is what makes an audit 'community-valid' rather than 'standard'."
+    },
+    "audit_classification": {
+      "type": "string",
+      "enum": ["community_valid", "standard", "low_confidence"],
+      "description": "Classification of audits produced using this configuration. 'community_valid' requires full provenance. 'low_confidence' if participants < 10."
+    },
+    "custom_metrics": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "Additional fairness metrics the community requested beyond disparate impact."
+    }
+  },
+  "additionalProperties": false
+}
