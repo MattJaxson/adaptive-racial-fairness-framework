@@ -2,9 +2,10 @@ import base64
 import copy
 import io
 import logging
+from pathlib import Path
 
 import dash
-from dash import dcc, html, Input, Output, State
+from dash import dcc, html, Input, Output, State, callback_context
 import plotly.express as px
 import pandas as pd
 
@@ -17,6 +18,28 @@ setup_logging()
 community_defs = load_community_definitions()
 
 DI_THRESHOLD = 0.8  # 4/5ths rule legal threshold
+
+# ── Demo datasets ─────────────────────────────────────────────────────────────
+DEMO_DATASETS = {
+    'hmda': {
+        'path': Path(__file__).parent / 'data' / 'external' / 'hmda_michigan_lending.csv',
+        'label': 'HMDA Michigan Lending (4,463 records)',
+        'race_col': 'derived_race',
+        'outcome_col': 'action_taken',
+        'favorable_value': '1',
+        'description': 'Real mortgage data from CFPB. Shows Black applicants at DI=0.8174 — '
+                        'passes EEOC 0.80 threshold but fails community-defined 0.85.',
+    },
+    'compas': {
+        'path': Path(__file__).parent / 'data' / 'external' / 'compas_recidivism.csv',
+        'label': 'COMPAS Recidivism (7,214 records)',
+        'race_col': 'race',
+        'outcome_col': 'two_year_recid',
+        'favorable_value': '0',
+        'description': 'ProPublica COMPAS data. African-American defendants at DI=0.8009 — '
+                        'barely passes the federal standard.',
+    },
+}
 
 app = dash.Dash(__name__)
 server = app.server
@@ -33,8 +56,18 @@ app.layout = html.Div(className="app-container", children=[
 
         html.Hr(className="sidebar-divider"),
 
+        # Demo buttons
+        html.P("Try a Demo", className="sidebar-label"),
+        html.Div([
+            html.Button("HMDA Lending Data", id="demo-hmda", className="demo-btn"),
+            html.Button("COMPAS Recidivism", id="demo-compas", className="demo-btn"),
+        ], className="demo-btn-group"),
+        html.Div(id='demo-description', className="demo-description"),
+
+        html.Hr(className="sidebar-divider"),
+
         # Upload
-        html.P("Upload Dataset", className="sidebar-label"),
+        html.P("Or Upload Your Own", className="sidebar-label"),
         dcc.Upload(
             id='upload-data',
             children=html.Div(['Drag & Drop or ', html.A('Select CSV')]),
@@ -110,16 +143,54 @@ app.layout = html.Div(className="app-container", children=[
 @app.callback(
     Output('stored-data', 'data'),
     Output('race-col-dropdown', 'options'),
+    Output('race-col-dropdown', 'value'),
     Output('outcome-col-dropdown', 'options'),
+    Output('outcome-col-dropdown', 'value'),
     Output('upload-status', 'children'),
+    Output('demo-description', 'children'),
     Input('upload-data', 'contents'),
+    Input('demo-hmda', 'n_clicks'),
+    Input('demo-compas', 'n_clicks'),
     State('upload-data', 'filename'),
     prevent_initial_call=True,
 )
-def store_upload(contents, filename):
-    """Parse uploaded CSV, store as JSON, populate column dropdowns."""
+def store_upload(contents, demo_hmda_clicks, demo_compas_clicks, filename):
+    """Parse uploaded CSV or load demo dataset, store as JSON, populate column dropdowns."""
+    ctx = callback_context
+    if not ctx.triggered:
+        return None, [], None, [], None, '', ''
+
+    trigger_id = ctx.triggered[0]['prop_id'].split('.')[0]
+
+    # ── Demo dataset loading ──────────────────────────────────────────────────
+    if trigger_id in ('demo-hmda', 'demo-compas'):
+        demo_key = 'hmda' if trigger_id == 'demo-hmda' else 'compas'
+        demo = DEMO_DATASETS[demo_key]
+        try:
+            df = pd.read_csv(demo['path'])
+            df.columns = df.columns.str.strip()
+            # Convert outcome column to string for consistent matching
+            df[demo['outcome_col']] = df[demo['outcome_col']].astype(str)
+            col_options = [{'label': c, 'value': c} for c in df.columns]
+            status = html.Span(
+                f"✓ Demo: {demo['label']}",
+                className="upload-success",
+            )
+            description = html.P(demo['description'], className="demo-desc-text")
+            logging.info("Loaded demo dataset: %s — %d rows", demo_key, len(df))
+            return (
+                df.to_json(date_format='iso', orient='split'),
+                col_options, demo['race_col'],
+                col_options, demo['outcome_col'],
+                status, description,
+            )
+        except Exception as exc:
+            logging.error("Demo load failed: %s", exc)
+            return None, [], None, [], None, html.Span(f"Error: {exc}", className="upload-error"), ''
+
+    # ── User upload ───────────────────────────────────────────────────────────
     if contents is None:
-        return None, [], [], ''
+        return None, [], None, [], None, '', ''
 
     _, content_string = contents.split(',')
     decoded = base64.b64decode(content_string)
@@ -130,10 +201,10 @@ def store_upload(contents, filename):
         col_options = [{'label': c, 'value': c} for c in df.columns]
         status = html.Span(f"✓ {filename} ({len(df):,} rows)", className="upload-success")
         logging.info("Uploaded %s — %d rows, %d columns", filename, len(df), len(df.columns))
-        return df.to_json(date_format='iso', orient='split'), col_options, col_options, status
+        return df.to_json(date_format='iso', orient='split'), col_options, None, col_options, None, status, ''
     except Exception as exc:
         logging.error("Upload failed: %s", exc)
-        return None, [], [], html.Span(f"Error: {exc}", className="upload-error")
+        return None, [], None, [], None, html.Span(f"Error: {exc}", className="upload-error"), ''
 
 
 @app.callback(
@@ -149,7 +220,22 @@ def update_favorable_options(outcome_col, stored_data):
         return [], None
     df = pd.read_json(stored_data, orient='split')
     unique_vals = sorted(df[outcome_col].dropna().unique().tolist(), key=str)
-    return [{'label': str(v), 'value': v} for v in unique_vals], None
+    options = [{'label': str(v), 'value': v} for v in unique_vals]
+
+    # Auto-select favorable value if this matches a demo dataset
+    auto_value = None
+    for demo in DEMO_DATASETS.values():
+        if outcome_col == demo['outcome_col']:
+            fav = demo['favorable_value']
+            # Match against string or numeric versions
+            for v in unique_vals:
+                if str(v) == fav:
+                    auto_value = v
+                    break
+            if auto_value is not None:
+                break
+
+    return options, auto_value
 
 
 @app.callback(
