@@ -148,6 +148,54 @@
       "type": "array",
       "items": {"type": "string"},
       "description": "Additional fairness metrics the community requested beyond disparate impact."
+    },
+    "evidence_requirements": {
+      "type": "object",
+      "properties": {
+        "minimum_evidence_tier": {
+          "type": "string",
+          "enum": ["output_logs_only", "validation_test", "challenge_set_verified", "training_or_eval_data"],
+          "description": "Minimum VEF evidence_tier vendors must submit. Submissions below this tier receive INSUFFICIENT_EVIDENCE."
+        },
+        "minimum_group_n": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Minimum non-excluded rows required per group. Default: 30."
+        },
+        "absolute_floors": {
+          "type": "object",
+          "description": "Per-outcome, per-group absolute rate floors, such as {\"resolution_success\": {\"AAVE\": 0.95}}."
+        }
+      },
+      "additionalProperties": false,
+      "description": "Evidence quality and sample requirements vendors must satisfy before bias metrics are evaluated."
+    },
+    "attestor_policy": {
+      "type": "object",
+      "properties": {
+        "allow_demo_attestors": {
+          "type": "boolean",
+          "description": "Whether demo-only trusted keys may create verified VEF verdicts for this standard."
+        },
+        "trusted_key_ids": {
+          "description": "Allowed public key IDs by attestation type, or a string array applying to all attestation types.",
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": {
+                "type": "array",
+                "items": {"type": "string"}
+              }
+            },
+            {
+              "type": "array",
+              "items": {"type": "string"}
+            }
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "description": "Role-based source-verification policy for VEF attestations."
     }
   },
   "additionalProperties": false
